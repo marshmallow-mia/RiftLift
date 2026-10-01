@@ -55,6 +55,38 @@ def restore_worker_streams() -> None:
         setattr(sys, name, os.fdopen(descriptor, mode, encoding="utf-8", buffering=1))
 
 
+def _add_every_version(paths, url, emit, finalize):
+    from .builds import build_label
+    from .library import NotLaunchableError, add_all_versions
+
+    installed, failed = add_all_versions(
+        paths,
+        url,
+        on_build=lambda index, total, _build: emit("version", index=index, total=total),
+        on_finalizing=finalize,
+    )
+    # Version labels and a failure kind only: error text may hold credentials.
+    for build, error in failed:
+        kind = "not_launchable" if isinstance(error, NotLaunchableError) else "failed"
+        emit("failed", label=build_label(build), kind=kind)
+    if not installed:
+        raise RuntimeError("no version could be installed")
+    return installed[0]
+
+
+def _install(paths, request, emit, finalize):
+    from .library import ALL_BUILDS, add
+
+    build = request.get("build")
+    if build == ALL_BUILDS:
+        return _add_every_version(paths, request["url"], emit, finalize)
+    if build:
+        return add(
+            paths, request["url"], build_selector=str(build), on_finalizing=finalize
+        )
+    return add(paths, request["url"], on_finalizing=finalize)
+
+
 def main() -> int:
     restore_worker_streams()
     output = sys.stdout
@@ -66,7 +98,7 @@ def main() -> int:
     try:
         request = json.loads(sys.stdin.readline(65536))
         paths = Paths(**{key: Path(value) for key, value in request["paths"].items()})
-        from .library import add, parse_download_progress
+        from .library import parse_download_progress
 
         def progress(line):
             parsed = parse_download_progress(line)
@@ -83,7 +115,7 @@ def main() -> int:
                 raise ValueError("Invalid finalization acknowledgement")
 
         with contextlib.redirect_stdout(LineWriter(progress)):
-            game = add(paths, request["url"], on_finalizing=finalize)
+            game = _install(paths, request, emit, finalize)
             # The install record is already committed. A Steam sync failure
             # must not turn an installed game into a failed download.
             if request.get("sync_steam"):

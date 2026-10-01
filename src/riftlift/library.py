@@ -9,14 +9,15 @@ from collections.abc import Callable
 from pathlib import Path
 
 from meta_pcvr_downloader.api import (
+    Build,
     MetaApiError,
-    list_builds,
     parse_app_id,
     select_build,
 )
 from meta_pcvr_downloader.download import Downloader, DownloadError, fetch_manifest
 
 from .auth import account_tokens
+from .builds import AvailableBuild, build_label, list_all_builds
 from .config import Game, Paths
 from .detection import best_windows_executable, is_unreal_shipping
 from .metadata import generate_artwork, populate_game_metadata
@@ -136,20 +137,122 @@ def _launch_arguments(
     return arguments
 
 
-def _owned_build(
-    paths: Paths, app_id: str, build_selector: str | None
-) -> tuple[str, object, dict]:
-    """Find a signed-in account that may download the app and its manifest."""
+ALL_BUILDS = "all"
+
+
+class NotLaunchableError(ValueError):
+    """A build downloaded completely, but RiftLift cannot launch it."""
+
+    def __init__(self, directory: Path, reason: Exception) -> None:
+        super().__init__(
+            f"downloaded to {directory}, but RiftLift cannot launch it: {reason}"
+        )
+        self.directory = directory
+
+
+def _account_builds(paths: Paths, app_id: str) -> tuple[str, list[AvailableBuild]]:
+    """Find a signed-in account that may download the app, and list its builds."""
     failure: Exception | None = None
     for token in account_tokens(paths, app_id):
         try:
-            build = select_build(list_builds(token, app_id), build_selector)
+            return token, list_all_builds(token, app_id)
+        except (DownloadError, MetaApiError) as error:
+            # Another signed-in account may own it; keep the first reason.
+            failure = failure or error
+    assert failure is not None
+    raise failure
+
+
+def available_builds(paths: Paths, app: str) -> list[AvailableBuild]:
+    """Return every build of ``app`` a signed-in account can download."""
+    return _account_builds(paths, parse_app_id(app))[1]
+
+
+def _owned_build(
+    paths: Paths,
+    app_id: str,
+    build_selector: str | None,
+    builds: list[Build] | None = None,
+) -> tuple[str, Build, dict]:
+    """Find a signed-in account that may download the build, and its manifest.
+
+    ``builds`` is an earlier listing to choose from instead of asking Meta again.
+    """
+    failure: Exception | None = None
+    for token in account_tokens(paths, app_id):
+        try:
+            listed = list_all_builds(token, app_id) if builds is None else builds
+            build = select_build(listed, build_selector)
             return token, build, fetch_manifest(token, build)
         except (DownloadError, MetaApiError) as error:
             # Another signed-in account may own it; keep the first reason.
             failure = failure or error
     assert failure is not None
     raise failure
+
+
+def _existing_meta_game(paths: Paths, slug: str) -> Game | None:
+    if not (paths.data / "games" / f"{slug}.json").exists():
+        return None
+    try:
+        game = Game.load(paths, slug)
+    except ValueError:
+        return None
+    return game if game.source == "meta" else None
+
+
+BUILD_MARKER = ".riftlift-build"
+
+
+def _same_build(game: Game, build: Build) -> bool:
+    # Records written before binary IDs were stored only know the version.
+    if game.binary_id:
+        return game.binary_id == build.binary_id
+    return game.version == build.version
+
+
+def _folder_build(paths: Paths, slug: str) -> str | None:
+    """Return the binary ID downloaded into a game folder, if it is known."""
+    try:
+        return (paths.games / slug / BUILD_MARKER).read_text().strip() or None
+    except (FileNotFoundError, OSError, UnicodeError):
+        return None
+
+
+def _slot_free_for(paths: Paths, slug: str, build: Build) -> bool:
+    """Whether ``build`` may download into ``paths.games / slug``."""
+    record = _existing_meta_game(paths, slug)
+    if record is not None:
+        return _same_build(record, build)
+    if not (paths.games / slug).exists():
+        return True
+    # A folder without a library record, e.g. a build RiftLift cannot launch.
+    return _folder_build(paths, slug) == build.binary_id
+
+
+def _install_identity(
+    paths: Paths, build: Build, *, side_by_side: bool, force: bool = False
+) -> tuple[str, str]:
+    """Return the slug and display name a build installs under.
+
+    A plain install keeps one folder per game, so installing again updates it.
+    An explicitly chosen build that differs from the installed one gets its
+    own folder and library entry, so several versions can coexist. Builds that
+    share a version string are told apart by their version code.
+    """
+    slug = slugify(build.app_name)
+    existing = _existing_meta_game(paths, slug)
+    if (existing is not None and _same_build(existing, build)) or not (
+        force or (side_by_side and existing is not None)
+    ):
+        return slug, build.app_name
+    versioned = f"{slug}-{slugify(build.version)}"
+    if not _slot_free_for(paths, versioned, build):
+        return (
+            f"{versioned}-{build.version_code}",
+            f"{build.app_name} ({build.version}, build {build.version_code})",
+        )
+    return versioned, f"{build.app_name} ({build.version})"
 
 
 def add(
@@ -161,12 +264,27 @@ def add(
     arguments: str | None = None,
     jobs: int | None = None,
     on_finalizing: Callable[[], None] | None = None,
+    builds: list[Build] | None = None,
+    separate_version: bool = False,
 ) -> Game:
+    """Download one build and add it to the library.
+
+    ``builds`` lets callers that already listed the builds skip a second
+    request. ``separate_version`` forces a versioned folder even when no other
+    version is installed yet.
+    """
+    if build_selector == ALL_BUILDS:
+        raise ValueError("use add_all_versions to download every build")
     paths.create()
     app_id = parse_app_id(app)
     print("Reading your persistent RiftLift Meta login...")
-    token, build, manifest = _owned_build(paths, app_id, build_selector)
-    slug = slugify(build.app_name)
+    token, build, manifest = _owned_build(paths, app_id, build_selector, builds)
+    slug, name = _install_identity(
+        paths,
+        build,
+        side_by_side=build_selector is not None,
+        force=separate_version,
+    )
     directory = paths.games / slug
     print(f"Downloading {build.app_name} {build.version}...")
     workers = default_download_workers() if jobs is None else jobs
@@ -178,13 +296,20 @@ def add(
         _download_path(paths.cache / "segments"),
         workers,
     ).run(manifest)
-    launch_file = _best_executable(directory, manifest, executable)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / BUILD_MARKER).write_text(build.binary_id + "\n")
+    try:
+        launch_file = _best_executable(directory, manifest, executable)
+    except ValueError as error:
+        if executable is not None:
+            raise
+        raise NotLaunchableError(directory, error) from error
     launch_arguments = _launch_arguments(directory, launch_file, manifest, arguments)
     game = Game(
         slug=slug,
-        name=build.app_name,
+        name=name,
         app_id=app_id,
-        app_key=str(manifest.get("canonicalName") or slug),
+        app_key=str(manifest.get("canonicalName") or slugify(build.app_name)),
         directory=str(directory.resolve()),
         executable=launch_file,
         arguments=launch_arguments,
@@ -192,6 +317,7 @@ def add(
         platform_offline=True,
         platform_shim=True,
         source="meta",
+        binary_id=build.binary_id,
     )
     if on_finalizing is not None:
         on_finalizing()
@@ -201,6 +327,46 @@ def add(
     except RiftLiftError as error:
         print(f"warning: catalog metadata was not available: {error}")
     return game
+
+
+def add_all_versions(
+    paths: Paths,
+    app: str,
+    *,
+    jobs: int | None = None,
+    builds: list[Build] | None = None,
+    on_build: Callable[[int, int, Build], None] | None = None,
+    on_finalizing: Callable[[], None] | None = None,
+) -> tuple[list[Game], list[tuple[Build, Exception]]]:
+    """Download every available build, each into its own versioned folder.
+
+    A failed build does not stop the others. Returns the installed games and
+    the builds that failed with their errors.
+    """
+    if builds is None:
+        builds = available_builds(paths, app)
+    installed: list[Game] = []
+    failed: list[tuple[Build, Exception]] = []
+    for index, build in enumerate(builds, start=1):
+        print(f"Version {index}/{len(builds)}: {build_label(build)}")
+        if on_build is not None:
+            on_build(index, len(builds), build)
+        try:
+            installed.append(
+                add(
+                    paths,
+                    app,
+                    build_selector=build.binary_id,
+                    jobs=jobs,
+                    builds=builds,
+                    separate_version=True,
+                    on_finalizing=on_finalizing,
+                )
+            )
+        except Exception as error:  # keep downloading the remaining builds
+            print(f"warning: {build_label(build)} failed: {error}")
+            failed.append((build, error))
+    return installed, failed
 
 
 def remove(paths: Paths, game: Game) -> None:

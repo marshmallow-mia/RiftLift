@@ -151,6 +151,27 @@ STRINGS = {
         "phase_downloading": "Téléchargement",
         "phase_assembling_files": "Assemblage des fichiers",
         "assembling_progress": "{label} : {done:.1f} / {total:.1f} Go",
+        "sign_in_to_verify": (
+            "Ce jeu n'est plus listé sur le store. Connecte-toi à Meta pour "
+            "installer les jeux retirés que tu possèdes."
+        ),
+        "version_section": "Version",
+        "loading_versions": "Chargement des versions disponibles…",
+        "latest_version": "{label} (dernière)",
+        "all_versions": "Toutes les versions ({count})",
+        "all_versions_confirm": (
+            "Télécharger les {count} versions de {name} ? Chaque version est une "
+            "installation complète séparée et peut occuper beaucoup d'espace disque."
+        ),
+        "installing_version": "Version {index}/{total}",
+        "versions_failed": (
+            "{failed} versions sur {total} n'ont pas pu être téléchargées :"
+        ),
+        "version_not_launchable": (
+            "téléchargée, mais RiftLift ne peut pas la lancer (souvent une "
+            "version 32 bits)"
+        ),
+        "version_failed": "échec du téléchargement",
     },
     "local_game": {
         "title": "Ajouter un jeu VR local",
