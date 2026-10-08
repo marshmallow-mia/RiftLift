@@ -180,7 +180,8 @@ class AuthDialog(QtWidgets.QDialog):
         width = max(self.width(), self.minimumWidth()) - left - right
         for label in self._wrapped:
             label.ensurePolished()
-            label.setMinimumHeight(label.heightForWidth(width))
+            # An empty label answers -1.
+            label.setMinimumHeight(max(0, label.heightForWidth(width)))
         if self.sizeHint().height() > self.height():
             self.resize(self.width(), self.sizeHint().height())
 

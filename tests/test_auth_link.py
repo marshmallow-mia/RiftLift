@@ -242,3 +242,22 @@ def test_a_pasted_address_that_is_not_meta_s_callback_is_refused(
     assert not (paths.config / "meta-auth-callback").exists()
     dialog.close()
     app.processEvents()
+
+
+def test_fitting_the_dialog_logs_no_qt_warnings(tmp_path, monkeypatch) -> None:
+    from PySide6 import QtCore
+
+    warnings = []
+    previous = QtCore.qInstallMessageHandler(
+        lambda _kind, _context, message: warnings.append(message)
+    )
+    try:
+        app, dialog, _ = _waiting_dialog(tmp_path, monkeypatch)
+        dialog.paste_toggle.click()
+        app.processEvents()
+    finally:
+        QtCore.qInstallMessageHandler(previous)
+
+    assert not [message for message in warnings if "Negative sizes" in message]
+    dialog.close()
+    app.processEvents()
