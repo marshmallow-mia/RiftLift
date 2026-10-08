@@ -166,3 +166,53 @@ def test_the_build_code_fallback_never_lands_on_another_version(tmp_path: Path) 
     assert slug not in {"game", "game-1-0", "game-1-0-2"}
     assert name == "Game (1.0, build 2)"
     assert _install_identity(paths, second, side_by_side=True)[0] == slug
+
+
+def test_every_version_leaves_installed_versions_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from riftlift import library
+    from riftlift.config import Game
+
+    paths = _paths(tmp_path)
+    (paths.games / "game").mkdir(parents=True)
+    installed = Game(
+        "game",
+        "Game",
+        "1",
+        "k",
+        str(paths.games / "game"),
+        "a.exe",
+        ["-custom"],
+        version="2.0",
+        source="meta",
+        binary_id="b2",
+        environment={"KEY": "value"},
+    )
+    installed.save(paths)
+    builds = [Build("1", "Game", "b2", "2.0", 2), Build("1", "Game", "b1", "1.0", 1)]
+    downloaded = []
+    monkeypatch.setattr(library, "account_tokens", lambda *_args: ["token"])
+    monkeypatch.setattr(
+        library, "fetch_manifest", lambda _t, _b: {"launchFile": "a.exe"}
+    )
+    monkeypatch.setattr(library, "populate_game_metadata", lambda *_args: None)
+
+    class Downloader:
+        def __init__(self, _token, build, directory, _cache, _workers):
+            downloaded.append(build.binary_id)
+            self.directory = directory
+
+        def run(self, _manifest):
+            _pe64(self.directory / "a.exe")
+
+    monkeypatch.setattr(library, "Downloader", Downloader)
+
+    games, failed = library.add_all_versions(paths, "1", builds=builds)
+
+    assert not failed
+    assert downloaded == ["b1"]
+    assert [game.slug for game in games] == ["game", "game-1-0"]
+    kept = Game.load(paths, "game")
+    assert kept.arguments == ["-custom"]
+    assert kept.environment == {"KEY": "value"}

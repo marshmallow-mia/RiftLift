@@ -18,7 +18,7 @@ from meta_pcvr_downloader.download import Downloader, DownloadError, fetch_manif
 
 from .auth import account_tokens
 from .builds import AvailableBuild, build_label, default_build, list_all_builds
-from .config import Game, Paths
+from .config import Game, Paths, games
 from .detection import best_windows_executable, is_unreal_shipping
 from .metadata import generate_artwork, populate_game_metadata
 from .util import RiftLiftError
@@ -364,6 +364,19 @@ def _copy_catalog(paths: Paths, source: Game, game: Game) -> None:
     game.save(paths)
 
 
+def _installed_record(paths: Paths, app_id: str, build: Build) -> Game | None:
+    """Return the library record that already holds ``build``, if any."""
+    for game in games(paths):
+        if (
+            game.source == "meta"
+            and game.app_id == app_id
+            and _same_build(game, build)
+            and game.game_dir.is_dir()
+        ):
+            return game
+    return None
+
+
 def add_all_versions(
     paths: Paths,
     app: str,
@@ -385,10 +398,19 @@ def add_all_versions(
     # Every version shares the store page: fetch it once, not once per version,
     # which also keeps Meta from rate-limiting the rest of the run.
     catalog: Game | None = None
+    app_id = parse_app_id(app)
     for index, build in enumerate(builds, start=1):
         print(f"Version {index}/{len(builds)}: {build_label(build)}")
         if on_build is not None:
             on_build(index, len(builds), build)
+        # An installed version keeps its record and launch options; resuming
+        # a paused run also skips the versions it already finished.
+        present = _installed_record(paths, app_id, build)
+        if present is not None:
+            installed.append(present)
+            if catalog is None and present.description:
+                catalog = present
+            continue
         try:
             game = add(
                 paths,
