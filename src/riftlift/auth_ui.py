@@ -182,16 +182,19 @@ class AuthDialog(QtWidgets.QDialog):
             self.account_list.addWidget(row)
 
     def _fit_text(self):
-        # A top-level dialog doesn't grow for wrapped text: give each label the
-        # height its text needs at the dialog's width, then let the dialog grow.
+        # A top-level dialog doesn't follow its content: give each wrapped label
+        # the height its text needs at the dialog's width, then size the dialog
+        # to the content, smaller again once a section is hidden.
         left, _top, right, _bottom = self.layout().getContentsMargins()
         width = max(self.width(), self.minimumWidth()) - left - right
         for label in self._wrapped:
             label.ensurePolished()
             # An empty label answers -1.
             label.setMinimumHeight(max(0, label.heightForWidth(width)))
-        if self.sizeHint().height() > self.height():
-            self.resize(self.width(), self.sizeHint().height())
+        self.layout().activate()
+        height = self.sizeHint().height()
+        if height != self.height():
+            self.resize(self.width(), height)
 
     def show_state(self):
         """Show the idle account list and the actions that fit it."""

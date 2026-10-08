@@ -277,3 +277,21 @@ def test_a_whole_console_message_can_be_pasted(tmp_path, monkeypatch) -> None:
         callback = (paths.config / "meta-auth-callback").read_text()
         assert callback == "oculus://login?token=abc&blob=xyz", browser
         _close(app, dialog)
+
+
+def test_the_dialog_shrinks_again_when_manual_sign_in_closes(
+    tmp_path, monkeypatch
+) -> None:
+    app, dialog, _ = _waiting(tmp_path, monkeypatch, browser=lambda: FIREFOX)
+    collapsed = dialog.height()
+    dialog.manual_toggle.click()
+    app.processEvents()
+    assert dialog.height() > collapsed
+
+    dialog.cancel_login()
+    app.processEvents()
+
+    # Only the signed-out text and one button are left: no leftover tall window.
+    assert dialog.height() <= collapsed
+    assert dialog.height() == dialog.sizeHint().height()
+    _close(app, dialog)
