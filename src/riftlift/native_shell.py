@@ -18,6 +18,7 @@ NAV = namespace("nav")
 GAME = namespace("game")
 LIBRARY = namespace("library")
 SHELL = namespace("shell")
+APOSTROPHES = "'\u2019\u02bc"
 
 
 def search_words(text: str) -> list[str]:
@@ -26,7 +27,8 @@ def search_words(text: str) -> list[str]:
     plain = "".join(
         char if char.isalnum() else " "
         for char in decomposed
-        if not unicodedata.combining(char)
+        # An apostrophe belongs to its word: "Lucky's" is found as "luckys" too.
+        if not unicodedata.combining(char) and char not in APOSTROPHES
     )
     return plain.split()
 

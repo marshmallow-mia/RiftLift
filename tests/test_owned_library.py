@@ -173,4 +173,6 @@ def test_library_search_ignores_word_order_accents_and_punctuation(
 
 def test_search_words_normalise_case_accents_and_punctuation() -> None:
     assert search_words("  Pokémon: CAFÉ-Racer ") == ["pokemon", "cafe", "racer"]
+    assert search_words("Lucky\u2019s Tale") == search_words("lucky's tale")
+    assert search_words("Lucky\u2019s Tale") == ["luckys", "tale"]
     assert search_words("") == []
