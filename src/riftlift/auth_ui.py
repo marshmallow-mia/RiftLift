@@ -160,6 +160,13 @@ class AuthDialog(QtWidgets.QDialog):
             self.retry.setVisible(False)
             QtCore.QTimer.singleShot(0, self.start)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # A narrower or wider dialog wraps its text onto a different number of
+        # lines. _fit_text only changes the height, so this doesn't repeat.
+        if event.size().width() != event.oldSize().width():
+            self._fit_text()
+
     def show_accounts(self):
         """Rebuild one row per signed-in account, each with its own sign-out."""
         while self.account_list.count():

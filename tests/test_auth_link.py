@@ -372,3 +372,24 @@ def test_the_guide_address_is_copied_when_no_browser_opens(
     )
     assert dialog.paste_error.isVisible()
     _close(app, dialog)
+
+
+def test_text_fits_again_when_the_dialog_is_narrowed(tmp_path, monkeypatch) -> None:
+    from riftlift.i18n import set_language
+
+    set_language("fr")
+    try:
+        app, dialog, _ = _waiting(tmp_path, monkeypatch, browser=_no_browser)
+        dialog.show_error(RiftLiftError("no browser"))
+        app.processEvents()
+        dialog.resize(dialog.minimumWidth(), dialog.height())
+        app.processEvents()
+
+        for label in dialog.findChildren(QtWidgets.QLabel):
+            if label.isVisible() and label.wordWrap():
+                assert label.height() >= label.heightForWidth(label.width()), (
+                    label.text()
+                )
+        _close(app, dialog)
+    finally:
+        set_language("en")
