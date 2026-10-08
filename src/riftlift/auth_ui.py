@@ -307,7 +307,13 @@ class AuthDialog(QtWidgets.QDialog):
         self._fit_text()
 
     def _open_guide(self):
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(MANUAL_SIGN_IN_GUIDE))
+        if QtGui.QDesktopServices.openUrl(QtCore.QUrl(MANUAL_SIGN_IN_GUIDE)):
+            return
+        # Without a browser, the guide is only reachable by copying its address.
+        QtGui.QGuiApplication.clipboard().setText(MANUAL_SIGN_IN_GUIDE)
+        self.paste_error.setText(AUTH("guide_copied").format(url=MANUAL_SIGN_IN_GUIDE))
+        self.paste_error.show()
+        self._fit_text()
 
     def _submit_callback(self):
         if self.operation != "waiting":

@@ -241,6 +241,10 @@ STRINGS = {
             "Cette adresse vient d'une connexion précédente. Copie celle que Meta "
             "affiche après cette connexion."
         ),
+        "guide_copied": (
+            "Aucun navigateur n'a ouvert le guide. Son adresse est dans le "
+            "presse-papiers : {url}"
+        ),
         "manual_help": "Comment trouver cette adresse ?",
         "finish_sign_in": "Se connecter",
     },

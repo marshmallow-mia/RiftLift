@@ -351,3 +351,24 @@ def test_the_session_accepts_only_its_own_callback(tmp_path) -> None:
     assert session.accepts(f"oculus://login?token={own}&blob=b")
     assert not session.accepts(f"oculus://login?token={other}&blob=b")
     assert not session.accepts(f"https://login?token={own}&blob=b")
+
+
+def test_the_guide_address_is_copied_when_no_browser_opens(
+    tmp_path, monkeypatch
+) -> None:
+    from riftlift.auth_ui import AUTH
+
+    monkeypatch.setattr(
+        "riftlift.auth_ui.QtGui.QDesktopServices.openUrl", lambda _url: False
+    )
+    app, dialog, _ = _waiting(tmp_path, monkeypatch, browser=_no_browser)
+
+    dialog.help_link.click()
+    app.processEvents()
+
+    assert QtGui.QGuiApplication.clipboard().text() == MANUAL_SIGN_IN_GUIDE
+    assert dialog.paste_error.text() == AUTH("guide_copied").format(
+        url=MANUAL_SIGN_IN_GUIDE
+    )
+    assert dialog.paste_error.isVisible()
+    _close(app, dialog)

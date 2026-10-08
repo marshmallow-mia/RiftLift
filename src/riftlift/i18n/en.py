@@ -232,6 +232,7 @@ STRINGS = {
             "That address is from an earlier sign-in. Copy the one Meta shows after "
             "this sign-in."
         ),
+        "guide_copied": "No browser opened the guide. Its address is on the clipboard: {url}",
         "manual_help": "How do I find that address?",
         "finish_sign_in": "Sign in",
     },
