@@ -133,7 +133,7 @@ class DownloadJob(QtCore.QObject):
         elif kind == "error":
             self._error = (
                 event["reason"]
-                if event["reason"] == "sign_in_required"
+                if event["reason"] in {"sign_in_required", "not_launchable"}
                 else "download_failed"
             )
             self.error_detail = str(event.get("detail") or "")[:300]

@@ -216,3 +216,106 @@ def test_every_version_leaves_installed_versions_alone(
     kept = Game.load(paths, "game")
     assert kept.arguments == ["-custom"]
     assert kept.environment == {"KEY": "value"}
+
+
+def test_an_expired_sign_in_asks_to_sign_in_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from meta_pcvr_downloader.api import MetaApiError
+
+    from riftlift import game_ui
+    from riftlift.util import RiftLiftError
+
+    def expired(*_args):
+        raise MetaApiError(
+            'Meta API returned HTTP 400: {"error":{"message":"Error validating access '
+            'token","type":"OAuthException","code":190}}'
+        )
+
+    def delisted(_app_id):
+        raise RiftLiftError("Meta's store page has no catalog metadata for app 1")
+
+    monkeypatch.setattr(game_ui, "_is_signed_in", lambda _paths: True)
+    monkeypatch.setattr(game_ui, "available_builds", expired)
+    monkeypatch.setattr(game_ui, "fetch_catalog_metadata", delisted)
+
+    with pytest.raises(RiftLiftError) as raised:
+        game_ui.check_store_link(_paths(tmp_path), "1")
+
+    assert str(raised.value) == game_ui.ADD_GAME("sign_in_expired")
+
+
+def _run_worker(monkeypatch, paths: Paths, build: str):
+    import io
+    import json
+    import sys
+
+    from riftlift import download_worker
+
+    request = {
+        "paths": {
+            key: str(getattr(paths, key))
+            for key in ("data", "cache", "config", "games", "prefix", "tools")
+        },
+        "url": "1",
+        "sync_steam": False,
+        "build": build,
+    }
+    output = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(request) + "\n"))
+    monkeypatch.setattr(sys, "stdout", output)
+    download_worker.main()
+    return [json.loads(line) for line in output.getvalue().splitlines()]
+
+
+def test_a_build_that_cannot_launch_is_not_reported_as_a_network_error(
+    app, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from riftlift.download_job import DownloadJob
+    from riftlift.library import NotLaunchableError
+
+    paths = _paths(tmp_path)
+
+    def add(paths, url, *, build_selector, on_finalizing):
+        raise NotLaunchableError(paths.games / "game-1-0", ValueError("no 64-bit exe"))
+
+    monkeypatch.setattr("riftlift.library.add", add)
+    events = _run_worker(monkeypatch, paths, "b1")
+    assert events[-1]["event"] == "error"
+    assert events[-1]["reason"] == "not_launchable"
+    assert "game-1-0" in events[-1]["detail"]
+
+    job = DownloadJob(paths, "1", False, build_selector="b1")
+    job._handle(events[-1])
+    assert job._error == "not_launchable"
+
+
+def test_failed_versions_are_listed_even_when_none_installed(
+    app, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from riftlift import game_ui
+
+    notices = []
+    monkeypatch.setattr(
+        game_ui, "_themed_notice", lambda _parent, _title, text: notices.append(text)
+    )
+    dialog = game_ui.StoreGameDialog(_paths(tmp_path), lambda: None)
+    dialog._builds = [
+        Build("1", "Game", "b2", "2.0", 2),
+        Build("1", "Game", "b1", "1.0", 1),
+    ]
+    dialog._job = SimpleNamespace(
+        failed_versions=[("2.0 (2)", "not_launchable"), ("1.0 (1)", "failed")],
+        error_detail="",
+    )
+
+    dialog._finish_install(None, "download_failed")
+
+    assert len(notices) == 1
+    assert "2.0 (2)" in notices[0] and "1.0 (1)" in notices[0]
+    dialog._job = None
+    dialog._finish_install(None, "not_launchable")
+    assert dialog.validation.text() == game_ui.ADD_GAME("not_launchable")
+    dialog.close()

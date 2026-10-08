@@ -87,6 +87,25 @@ def _install(paths, request, emit, finalize):
     return add(paths, request["url"], on_finalizing=finalize)
 
 
+def _error_reason(error: Exception) -> str:
+    """Classify a failed install for the UI.
+
+    Exceptions from HTTP clients may contain credential-bearing URLs. Send a
+    bounded classification, never their raw text or traceback.
+    """
+    from .library import NotLaunchableError
+
+    if isinstance(error, NotLaunchableError):
+        return "not_launchable"
+    message = str(error).lower()
+    if any(
+        text in message
+        for text in ("401", "403", "login", "log in", "token", "sign in")
+    ):
+        return "sign_in_required"
+    return "download_failed"
+
+
 def main() -> int:
     restore_worker_streams()
     output = sys.stdout
@@ -128,18 +147,7 @@ def main() -> int:
         emit("complete", slug=game.slug)
         return 0
     except Exception as error:
-        # Exceptions from HTTP clients may contain credential-bearing URLs.
-        # Send a bounded classification, never their raw text or traceback.
-        message = str(error).lower()
-        reason = (
-            "sign_in_required"
-            if any(
-                text in message
-                for text in ("401", "403", "login", "log in", "token", "sign in")
-            )
-            else "download_failed"
-        )
-        emit("error", reason=reason, detail=describe_error(error))
+        emit("error", reason=_error_reason(error), detail=describe_error(error))
         return 1
 
 

@@ -152,8 +152,16 @@ STRINGS = {
         "phase_assembling_files": "Assemblage des fichiers",
         "assembling_progress": "{label} : {done:.1f} / {total:.1f} Go",
         "sign_in_to_verify": (
-            "Ce jeu n'est plus listé sur le store. Connecte-toi à Meta pour "
-            "installer les jeux retirés que tu possèdes."
+            "Ce jeu n'est plus listé sur le store. Connectez-vous à Meta pour "
+            "installer les jeux retirés que vous possédez."
+        ),
+        "sign_in_expired": (
+            "Votre connexion Meta a expiré. Reconnectez-vous depuis votre "
+            "bibliothèque pour installer les jeux retirés que vous possédez."
+        ),
+        "not_launchable": (
+            "Téléchargée, mais RiftLift ne peut pas lancer cette version (souvent "
+            "une version 32 bits). Ses fichiers restent dans votre dossier de jeux."
         ),
         "version_section": "Version",
         "loading_versions": "Chargement des versions disponibles…",

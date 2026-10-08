@@ -152,6 +152,14 @@ STRINGS = {
             "This game is not listed in the store. Sign in to Meta to install "
             "delisted games you own."
         ),
+        "sign_in_expired": (
+            "Your Meta sign-in has expired. Sign in again from your library to "
+            "install delisted games you own."
+        ),
+        "not_launchable": (
+            "Downloaded, but RiftLift cannot launch this build (often a 32-bit "
+            "build). Its files stay in your games folder."
+        ),
         "version_section": "Version",
         "loading_versions": "Loading available versions…",
         "latest_version": "{label} (latest)",

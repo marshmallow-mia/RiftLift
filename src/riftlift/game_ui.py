@@ -219,24 +219,39 @@ def check_store_link(paths: Paths, app_id: str) -> LinkCheck:
     but owners can still download them, so the signed-in build list wins.
     """
     signed_in = _is_signed_in(paths)
+    expired = False
     if signed_in:
         try:
             builds = available_builds(paths, app_id)
         except Exception as error:  # fall back to the public store page
             print(f"warning: could not list builds for {app_id}: {error}")
+            # Meta answers a stale or revoked token with an OAuthException.
+            expired = any(
+                text in str(error)
+                for text in ("OAuthException", "HTTP 401", "HTTP 403")
+            )
         else:
             return LinkCheck(builds[0].app_name, builds)
     try:
         metadata = fetch_catalog_metadata(app_id)
     except RiftLiftError as error:
-        if not signed_in and "has no catalog metadata" in str(error):
-            raise RiftLiftError(ADD_GAME("sign_in_to_verify")) from error
+        if "has no catalog metadata" in str(error):
+            if expired:
+                raise RiftLiftError(ADD_GAME("sign_in_expired")) from error
+            if not signed_in:
+                raise RiftLiftError(ADD_GAME("sign_in_to_verify")) from error
         raise
     if not metadata.name.strip():
         raise RiftLiftError(
             f"Meta's store page has no catalog metadata for app {app_id}"
         )
     return LinkCheck(metadata.name)
+
+
+# Install failures the dialog explains; anything else reads as a failed download.
+_INSTALL_ERRORS = frozenset(
+    {"sign_in_required", "download_failed", "worker_failed", "not_launchable"}
+)
 
 
 class _ValidationEvents(QtCore.QObject):
@@ -597,7 +612,9 @@ class StoreGameDialog(QtWidgets.QDialog):
     def _finish_install(self, game, error) -> None:
         self._busy = False
         failed = self._job.failed_versions if self._job is not None else []
-        if game is not None and failed:
+        # List the failed versions even when none installed: the plain
+        # failure text below cannot say which ones failed or why.
+        if failed:
             details = "\n".join(
                 f"{label}: {ADD_GAME('version_' + kind)}" for label, kind in failed
             )
@@ -628,8 +645,7 @@ class StoreGameDialog(QtWidgets.QDialog):
             self.submit.setAccessibleName(self.submit.text())
             key = (
                 error
-                if isinstance(error, str)
-                and error in {"sign_in_required", "download_failed", "worker_failed"}
+                if isinstance(error, str) and error in _INSTALL_ERRORS
                 else "download_failed"
             )
             message = ADD_GAME(key)
