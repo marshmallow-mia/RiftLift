@@ -3,6 +3,10 @@
 int main(void) {
     _putenv("RIFTLIFT_USER_ID=1234");
     _putenv("RIFTLIFT_USER_NAME=Test User");
+    CHECK(ovr_PlatformInitializeWindows("1") == 0);
+    CHECK(ovr_PlatformInitializeUnrealWindows("1") == 0);
+    CHECK(ovr_PlatformInitializeUnityWindows("1") == 0);
+    CHECK(ovr_UnityInitWrapperWindows("1", NULL));
     uint64_t request = ovr_UnityInitWrapperWindowsAsynchronous("1477883658957255");
     void *message = ovr_PopMessage();
     CHECK(message && ovr_Message_GetRequestID(message) == request);

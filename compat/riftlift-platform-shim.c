@@ -188,6 +188,25 @@ __declspec(dllexport) int __cdecl ovr_PlatformInitializeWindows(const char *app_
     return 0;
 }
 
+__declspec(dllexport) int __cdecl ovr_PlatformInitializeUnityWindows(const char *app_id)
+{
+    (void)app_id;
+    log_call("initialize unity windows: success");
+    return 0;
+}
+
+/* Older Unity Platform SDKs (such as Blocks') initialize through this wrapper.
+ * Meta's own sets the logging callback, calls the Unity initializer above
+ * and always reports true; forwarded, it waits for an Oculus service that
+ * never answers under Wine. */
+__declspec(dllexport) bool __cdecl ovr_UnityInitWrapperWindows(const char *app_id, void *logging)
+{
+    (void)logging;
+    log_call("unity init wrapper: success");
+    ovr_PlatformInitializeUnityWindows(app_id);
+    return true;
+}
+
 /* Unity's Core.AsyncInitialize waits for a PlatformInitialize response instead
  * of a return code. Forwarding it lets Meta's implementation wait for the
  * unavailable session until the game's authentication times out and it quits.
