@@ -141,13 +141,25 @@ class SystemStatusEvents(QtCore.QObject):
     complete = QtCore.Signal(bool, str)
 
 
+def _deliver(signal, *args) -> None:
+    """Hand a worker thread's result to the window, unless it is gone.
+
+    Closing the window or quitting deletes its event objects while a worker
+    may still be fetching; the result then has nowhere to go.
+    """
+    with contextlib.suppress(RuntimeError):  # "Signal source has been deleted"
+        signal.emit(*args)
+
+
 class Output(io.TextIOBase):
     def __init__(self, emit: Callable[[str], None]):
         self.emit = emit
 
     def write(self, value: str) -> int:
         if value:
-            self.emit(value)
+            # Workers print through this too; see _deliver.
+            with contextlib.suppress(RuntimeError):
+                self.emit(value)
         return len(value)
 
     def flush(self) -> None:
@@ -241,9 +253,9 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
     def _check_setup_status(self) -> None:
         def worker():
             try:
-                self.setup_status_events.complete.emit(needs_setup(self.paths))
+                _deliver(self.setup_status_events.complete, needs_setup(self.paths))
             except (OSError, RiftLiftError) as error:
-                self.setup_status_events.failed.emit(str(error))
+                _deliver(self.setup_status_events.failed, str(error))
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-setup-check"
@@ -265,21 +277,25 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
             try:
                 missing = needs_setup(self.paths)
             except (OSError, RiftLiftError) as error:
-                self.system_status_events.complete.emit(False, str(error))
+                _deliver(self.system_status_events.complete, False, str(error))
                 return
             if missing:
-                self.system_status_events.complete.emit(
-                    False, SETUP("status_needs_setup")
+                _deliver(
+                    self.system_status_events.complete,
+                    False,
+                    SETUP("status_needs_setup"),
                 )
                 return
             try:
                 active_runtime_json()
             except RiftLiftError:
-                self.system_status_events.complete.emit(
-                    False, SETUP("status_no_openxr_runtime")
+                _deliver(
+                    self.system_status_events.complete,
+                    False,
+                    SETUP("status_no_openxr_runtime"),
                 )
                 return
-            self.system_status_events.complete.emit(True, SETUP("status_ok"))
+            _deliver(self.system_status_events.complete, True, SETUP("status_ok"))
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-status-check"
@@ -610,11 +626,13 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
                     if is_steam
                     else fetch_catalog_metadata(app_id)
                 )
-                self.game_metadata_events.complete.emit(
-                    token, game.slug, metadata, None
+                _deliver(
+                    self.game_metadata_events.complete, token, game.slug, metadata, None
                 )
             except Exception as error:
-                self.game_metadata_events.complete.emit(token, game.slug, None, error)
+                _deliver(
+                    self.game_metadata_events.complete, token, game.slug, None, error
+                )
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-description-refresh"
@@ -671,11 +689,17 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
         def worker():
             try:
                 metadata, hero = self._load_owned_detail(app, refresh=refresh)
-                self.owned_detail_events.complete.emit(
-                    token, app.app_id, (metadata, hero), None
+                _deliver(
+                    self.owned_detail_events.complete,
+                    token,
+                    app.app_id,
+                    (metadata, hero),
+                    None,
                 )
             except Exception as error:
-                self.owned_detail_events.complete.emit(token, app.app_id, None, error)
+                _deliver(
+                    self.owned_detail_events.complete, token, app.app_id, None, error
+                )
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-owned-detail"
@@ -917,13 +941,13 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
                 try:
                     owned, failures = owned_apps(self.paths)
                 except Exception as error:
-                    self.owned_events.complete.emit(([], {}), error)
+                    _deliver(self.owned_events.complete, ([], {}), error)
                     return
                 for failure in failures:
                     print(f"Could not read a Meta account's games: {failure}")
                 # Show the list now; each icon may need a catalog lookup and a
                 # download, so they follow one by one instead of holding it back.
-                self.owned_events.complete.emit((owned, {}), None)
+                _deliver(self.owned_events.complete, (owned, {}), None)
                 for app in owned:
                     if token != self._owned_generation:
                         return
@@ -933,7 +957,7 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
                         print(f"warning: no icon for {app.name}: {error}")
                         continue
                     if icon:
-                        self.owned_events.icon.emit(token, app.app_id, icon)
+                        _deliver(self.owned_events.icon, token, app.app_id, icon)
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-owned-refresh"
@@ -1036,9 +1060,9 @@ class Window(NativePresentation, QtWidgets.QMainWindow):
                     contextlib.redirect_stderr(Output(self.events.output.emit)),
                 ):
                     result = operation()
-                self.events.complete.emit(success, result, refresh, None)
+                _deliver(self.events.complete, success, result, refresh, None)
             except Exception as error:
-                self.events.complete.emit("", None, False, error)
+                _deliver(self.events.complete, "", None, False, error)
 
         threading.Thread(target=worker, daemon=True, name="riftlift-operation").start()
 
