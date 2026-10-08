@@ -228,6 +228,10 @@ STRINGS = {
             "that starts with oculus:// and paste it here."
         ),
         "paste_not_callback": "That isn't the address from Meta. It starts with oculus://.",
+        "paste_old_callback": (
+            "That address is from an earlier sign-in. Copy the one Meta shows after "
+            "this sign-in."
+        ),
         "manual_help": "How do I find that address?",
         "finish_sign_in": "Sign in",
     },

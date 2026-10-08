@@ -57,6 +57,7 @@ def _waiting(tmp_path, monkeypatch, *, browser, launch=_browser_opens, token=Non
         login_url=LOGIN_URL,
         callback_ready=callback.is_file,
         complete=lambda: token,
+        accepts=lambda url: "earlier" not in url,
     )
     monkeypatch.setattr("riftlift.auth_ui.QtCore.QTimer.singleShot", lambda *_: None)
     monkeypatch.setattr("riftlift.auth_ui.default_browser", browser)
@@ -318,3 +319,35 @@ def test_the_dialog_shrinks_again_when_manual_sign_in_closes(
     assert dialog.height() <= collapsed
     assert dialog.height() == dialog.sizeHint().height()
     _close(app, dialog)
+
+
+def test_a_callback_from_an_earlier_sign_in_is_refused_at_once(
+    tmp_path, monkeypatch
+) -> None:
+    from riftlift.auth_ui import AUTH
+
+    app, dialog, paths = _waiting(tmp_path, monkeypatch, browser=_no_browser)
+    dialog.callback_entry.setText("oculus://earlier-sign-in?blob=x")
+    dialog.finish_button.click()
+    app.processEvents()
+
+    assert dialog.paste_error.text() == AUTH("paste_old_callback")
+    assert dialog.paste_error.isVisible()
+    assert dialog.operation == "waiting"
+    assert dialog.manual_section.isVisible()
+    assert not (paths.config / "meta-auth-callback").exists()
+    _close(app, dialog)
+
+
+def test_the_session_accepts_only_its_own_callback(tmp_path) -> None:
+    import hashlib
+
+    from riftlift.meta_auth import MetaAuthSession
+
+    session = MetaAuthSession(_paths(tmp_path), "request-1", LOGIN_URL)
+    own = hashlib.sha256(b"request-1").hexdigest()[:16]
+    other = hashlib.sha256(b"request-0").hexdigest()[:16]
+
+    assert session.accepts(f"oculus://login?token={own}&blob=b")
+    assert not session.accepts(f"oculus://login?token={other}&blob=b")
+    assert not session.accepts(f"https://login?token={own}&blob=b")

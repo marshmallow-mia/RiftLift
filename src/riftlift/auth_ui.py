@@ -316,6 +316,10 @@ class AuthDialog(QtWidgets.QDialog):
         try:
             if found is None:
                 raise ValueError(AUTH("paste_not_callback"))
+            # Checked here as well, so an address from an earlier attempt
+            # doesn't end this one.
+            if self.session is not None and not self.session.accepts(found.group(0)):
+                raise ValueError(AUTH("paste_old_callback"))
             complete_login(self.paths, found.group(0))
         except Exception as error:
             self.paste_error.setText(str(error))

@@ -237,6 +237,10 @@ STRINGS = {
             "l'adresse qui commence par oculus:// et colle-la ici."
         ),
         "paste_not_callback": "Ce n'est pas l'adresse de Meta. Elle commence par oculus://.",
+        "paste_old_callback": (
+            "Cette adresse vient d'une connexion précédente. Copie celle que Meta "
+            "affiche après cette connexion."
+        ),
         "manual_help": "Comment trouver cette adresse ?",
         "finish_sign_in": "Se connecter",
     },
