@@ -36,7 +36,9 @@ Firefox, and sign in to Meta as usual.
 1. On Meta's last page, **Continue as …**, press **Ctrl+Shift+K**. Firefox's
    **Web Console** opens.
 2. Click **Continue**. A yellow message appears: *Prevented navigation to
-   "oculus://…" due to an unknown protocol.*
+   "oculus://…" due to an unknown protocol.* If the console shows other
+   messages too, type `oculus` into its **Filter Output** box so only that one
+   is left.
 3. Right-click the message and choose **Copy Message**, or select it and copy
    it with **Ctrl+C**.
 
