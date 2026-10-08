@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define RIFTLIFT_USER_ID UINT64_C(1)
 #define MSG_ENTITLEMENT UINT32_C(0x186B58B1)
@@ -37,14 +38,15 @@ typedef struct FakeMessage {
     uint64_t magic;
     uint64_t request_id;
     uint32_t type;
+    char name[128]; /* the achievement an unlock reply is for */
 } FakeMessage;
 
 /* Payloads can outlive the response message that delivered them. Keep the
  * small identity objects stable for the lifetime of the process instead of
  * returning a pointer into a message that the application will free. */
-static const FakeMessage fake_user = {FAKE_MAGIC, 0, MSG_LOGGED_IN_USER};
-static const FakeMessage fake_org_scoped_id = {FAKE_MAGIC, 0, MSG_ORG_SCOPED_ID};
-static const FakeMessage fake_user_proof = {FAKE_MAGIC, 0, MSG_USER_PROOF};
+static const FakeMessage fake_user = {FAKE_MAGIC, 0, MSG_LOGGED_IN_USER, {0}};
+static const FakeMessage fake_org_scoped_id = {FAKE_MAGIC, 0, MSG_ORG_SCOPED_ID, {0}};
+static const FakeMessage fake_user_proof = {FAKE_MAGIC, 0, MSG_USER_PROOF, {0}};
 
 static SRWLOCK queue_lock = SRWLOCK_INIT;
 static FakeMessage *queue[16];
@@ -116,7 +118,7 @@ static void log_call(const char *name)
     }
 }
 
-static uint64_t enqueue(uint32_t type)
+static uint64_t enqueue_named(uint32_t type, const char *name)
 {
     FakeMessage *message = (FakeMessage *)calloc(1, sizeof(*message));
     uint64_t request_id = (uint64_t)InterlockedIncrement64(&next_request);
@@ -128,6 +130,9 @@ static uint64_t enqueue(uint32_t type)
     message->magic = FAKE_MAGIC;
     message->request_id = request_id;
     message->type = type;
+    if (name) {
+        strncpy(message->name, name, sizeof(message->name) - 1);
+    }
 
     AcquireSRWLockExclusive(&queue_lock);
     next = (queue_tail + 1) % (sizeof(queue) / sizeof(queue[0]));
@@ -139,6 +144,11 @@ static uint64_t enqueue(uint32_t type)
     queue_tail = next;
     ReleaseSRWLockExclusive(&queue_lock);
     return request_id;
+}
+
+static uint64_t enqueue(uint32_t type)
+{
+    return enqueue_named(type, NULL);
 }
 
 __declspec(dllexport) uint64_t __cdecl ovr_AssetFile_GetList(void)
@@ -336,7 +346,36 @@ __declspec(dllexport) uint64_t __cdecl ovr_Achievements_Unlock(const char *name)
         return convert.target ? convert.target(name) : 0;
     }
     log_call("achievement unlock request: local success queued");
-    return enqueue(MSG_ACHIEVEMENT_UNLOCK);
+    return enqueue_named(MSG_ACHIEVEMENT_UNLOCK, name);
+}
+
+/* The unlock reply above is local: answer its update getters here, or Meta's
+ * would read the fake message as one of its own and crash. */
+__declspec(dllexport) void *__cdecl ovr_Message_GetAchievementUpdate(const void *object)
+{
+    typedef void *(__cdecl *function_type)(const void *);
+    const FakeMessage *message = (const FakeMessage *)object;
+    if (message && message->magic == FAKE_MAGIC) return (void *)object;
+    union { FARPROC source; function_type target; } convert = {real_proc("ovr_Message_GetAchievementUpdate")};
+    return convert.target ? convert.target(object) : NULL;
+}
+
+__declspec(dllexport) bool __cdecl ovr_AchievementUpdate_GetJustUnlocked(const void *object)
+{
+    typedef bool(__cdecl *function_type)(const void *);
+    const FakeMessage *message = (const FakeMessage *)object;
+    if (message && message->magic == FAKE_MAGIC) return true;
+    union { FARPROC source; function_type target; } convert = {real_proc("ovr_AchievementUpdate_GetJustUnlocked")};
+    return convert.target ? convert.target(object) : false;
+}
+
+__declspec(dllexport) const char *__cdecl ovr_AchievementUpdate_GetName(const void *object)
+{
+    typedef const char *(__cdecl *function_type)(const void *);
+    const FakeMessage *message = (const FakeMessage *)object;
+    if (message && message->magic == FAKE_MAGIC) return message->name;
+    union { FARPROC source; function_type target; } convert = {real_proc("ovr_AchievementUpdate_GetName")};
+    return convert.target ? convert.target(object) : NULL;
 }
 
 __declspec(dllexport) uint64_t __cdecl ovr_CloudStorage_LoadBucketMetadata(const char *bucket)

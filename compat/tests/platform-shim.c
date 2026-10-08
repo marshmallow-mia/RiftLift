@@ -59,6 +59,9 @@ int main(void) {
     CHECK(ovr_Message_GetType(message) == MSG_ACHIEVEMENT_UNLOCK);
     CHECK(ovr_Message_GetRequestID(message) == request);
     CHECK(!ovr_Message_IsError(message));
+    /* Games read the unlock result: Meta's getters must never see the local reply. */
+    CHECK(ovr_AchievementUpdate_GetJustUnlocked(ovr_Message_GetAchievementUpdate(message)));
+    CHECK(strcmp(ovr_AchievementUpdate_GetName(ovr_Message_GetAchievementUpdate(message)), "first") == 0);
     ovr_FreeMessage(message);
     _putenv("RIFTLIFT_PLATFORM_OFFLINE=");
     /* Meta's implementation was never initialized: an empty queue must not reach it. */
