@@ -112,3 +112,57 @@ def test_the_picker_offers_the_default_build_first(app, tmp_path: Path) -> None:
         ("All versions (2)", "all"),
     ]
     dialog.close()
+
+
+def _record(paths: Path, slug: str, version: str, binary_id: str) -> None:
+    from riftlift.config import Game
+
+    Game(
+        slug,
+        f"Game ({version})",
+        "1",
+        "k",
+        str(paths.games / slug),
+        "a.exe",
+        [],
+        version=version,
+        source="meta",
+        binary_id=binary_id,
+    ).save(paths)
+
+
+def test_a_chosen_version_keeps_out_of_another_builds_paused_folder(
+    tmp_path: Path,
+) -> None:
+    from riftlift.library import BUILD_MARKER, _install_identity
+
+    paths = _paths(tmp_path)
+    paused = paths.games / "game"
+    paused.mkdir(parents=True)
+    (paused / BUILD_MARKER).write_text("other\n")
+    chosen = Build("1", "Game", "chosen", "2.0", 20)
+
+    assert _install_identity(paths, chosen, side_by_side=True) == (
+        "game-2-0",
+        "Game (2.0)",
+    )
+    # The paused build itself still resumes into its folder.
+    paused_build = Build("1", "Game", "other", "1.0", 10)
+    assert _install_identity(paths, paused_build, side_by_side=True)[0] == "game"
+
+
+def test_the_build_code_fallback_never_lands_on_another_version(tmp_path: Path) -> None:
+    from riftlift.library import _install_identity
+
+    paths = _paths(tmp_path)
+    _record(paths, "game", "3.0", "b30")
+    _record(paths, "game-1-0-2", "1.0.2", "b102")
+    _record(paths, "game-1-0", "1.0", "b10")
+    # "1.0" with build code 2 would fall back to game-1-0-2, version 1.0.2's folder.
+    second = Build("1", "Game", "b2", "1.0", 2)
+
+    slug, name = _install_identity(paths, second, side_by_side=True)
+
+    assert slug not in {"game", "game-1-0", "game-1-0-2"}
+    assert name == "Game (1.0, build 2)"
+    assert _install_identity(paths, second, side_by_side=True)[0] == slug

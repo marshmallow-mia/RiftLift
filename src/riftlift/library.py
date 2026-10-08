@@ -242,21 +242,27 @@ def _install_identity(
     A plain install keeps one folder per game, so installing again updates it.
     An explicitly chosen build that differs from the installed one gets its
     own folder and library entry, so several versions can coexist. Builds that
-    share a version string are told apart by their version code.
+    share a version string are told apart by their version code, and by their
+    binary ID if that name is taken too.
     """
     slug = slugify(build.app_name)
     existing = _existing_meta_game(paths, slug)
-    if (existing is not None and _same_build(existing, build)) or not (
-        force or (side_by_side and existing is not None)
-    ):
+    if existing is not None and _same_build(existing, build):
+        return slug, build.app_name
+    if not (force or side_by_side):
+        return slug, build.app_name
+    # The first chosen version keeps the plain folder, unless another build
+    # is paused there.
+    if existing is None and not force and _slot_free_for(paths, slug, build):
         return slug, build.app_name
     versioned = f"{slug}-{slugify(build.version)}"
-    if not _slot_free_for(paths, versioned, build):
-        return (
-            f"{versioned}-{build.version_code}",
-            f"{build.app_name} ({build.version}, build {build.version_code})",
-        )
-    return versioned, f"{build.app_name} ({build.version})"
+    if _slot_free_for(paths, versioned, build):
+        return versioned, f"{build.app_name} ({build.version})"
+    name = f"{build.app_name} ({build.version}, build {build.version_code})"
+    by_code = f"{versioned}-{build.version_code}"
+    if _slot_free_for(paths, by_code, build):
+        return by_code, name
+    return f"{versioned}-{slugify(build.binary_id)}", name
 
 
 def add(
