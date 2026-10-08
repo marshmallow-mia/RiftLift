@@ -18,12 +18,17 @@ NAV = namespace("nav")
 GAME = namespace("game")
 LIBRARY = namespace("library")
 SHELL = namespace("shell")
-APOSTROPHES = "'\u2019\u02bc"
+APOSTROPHES = "'\u2018\u2019\u02bc"
+# Letters that Unicode doesn't decompose into a base letter and an accent.
+_FOLDED_LETTERS = str.maketrans(
+    {"\u00f8": "o", "\u00e6": "ae", "\u0153": "oe", "\u0142": "l", "\u0111": "d"}
+)
 
 
 def search_words(text: str) -> list[str]:
     """Split text into comparable words, ignoring case, accents and punctuation."""
-    decomposed = unicodedata.normalize("NFKD", text.casefold())
+    folded = text.casefold().translate(_FOLDED_LETTERS)
+    decomposed = unicodedata.normalize("NFKD", folded)
     plain = "".join(
         char if char.isalnum() else " "
         for char in decomposed

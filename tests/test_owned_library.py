@@ -176,3 +176,15 @@ def test_search_words_normalise_case_accents_and_punctuation() -> None:
     assert search_words("Lucky\u2019s Tale") == search_words("lucky's tale")
     assert search_words("Lucky\u2019s Tale") == ["luckys", "tale"]
     assert search_words("") == []
+
+
+def test_search_words_fold_letters_without_an_accent_mark() -> None:
+    # These letters don't decompose, so stripping accents alone keeps them.
+    assert search_words("Ørsted Æble Łódź Œuvre Đakovo") == [
+        "orsted",
+        "aeble",
+        "lodz",
+        "oeuvre",
+        "dakovo",
+    ]
+    assert search_words("Lucky\u2018s Tale") == ["luckys", "tale"]
