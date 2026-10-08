@@ -17,7 +17,7 @@ from meta_pcvr_downloader.api import (
 from meta_pcvr_downloader.download import Downloader, DownloadError, fetch_manifest
 
 from .auth import account_tokens
-from .builds import AvailableBuild, build_label, list_all_builds
+from .builds import AvailableBuild, build_label, default_build, list_all_builds
 from .config import Game, Paths
 from .detection import best_windows_executable, is_unreal_shipping
 from .metadata import generate_artwork, populate_game_metadata
@@ -182,7 +182,11 @@ def _owned_build(
     for token in account_tokens(paths, app_id):
         try:
             listed = list_all_builds(token, app_id) if builds is None else builds
-            build = select_build(listed, build_selector)
+            build = (
+                default_build(listed)
+                if build_selector is None
+                else select_build(listed, build_selector)
+            )
             return token, build, fetch_manifest(token, build)
         except (DownloadError, MetaApiError) as error:
             # Another signed-in account may own it; keep the first reason.

@@ -12,7 +12,7 @@ from meta_pcvr_downloader.api import Build
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from .auth import accounts
-from .builds import build_label
+from .builds import build_label, default_build
 from .config import Game, Paths
 from .desktop_services import supports_steam_shortcuts
 from .download_job import DownloadJob
@@ -368,7 +368,11 @@ class StoreGameDialog(QtWidgets.QDialog):
             self.version_section.hide()
             self.versions.hide()
             return
-        for index, build in enumerate(builds):
+        # The first entry is what a plain install downloads: the newest build
+        # Meta offers, even when an alpha or beta build is newer.
+        default = default_build(builds)
+        ordered = [default, *(build for build in builds if build is not default)]
+        for index, build in enumerate(ordered):
             label = build_label(build)
             channels = [
                 channel

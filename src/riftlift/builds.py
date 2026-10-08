@@ -23,9 +23,14 @@ HISTORY_DOCUMENT_ID = "2885322071572384"
 
 @dataclass(frozen=True)
 class AvailableBuild(Build):
-    """A downloadable build plus the release channels it was published to."""
+    """A downloadable build plus the release channels it was published to.
+
+    ``offered`` marks the builds Meta's ``supportedBinaries`` query returns,
+    the ones Meta offers this account by default.
+    """
 
     channels: tuple[str, ...] = ()
+    offered: bool = False
 
 
 def parse_history(payload: dict, app_id: str, app_name: str) -> list[AvailableBuild]:
@@ -74,8 +79,20 @@ def merge_builds(
             version_code=build.version_code,
             change_log=build.change_log,
             channels=known.channels if known else (),
+            offered=True,
         )
     return sorted(merged.values(), key=lambda build: build.version_code, reverse=True)
+
+
+def default_build(builds: list[Build]) -> Build:
+    """Return the build a plain install picks: the newest one Meta offers.
+
+    The full history can hold newer builds that are only on an alpha or beta
+    channel. They stay installable when chosen, but never replace the default.
+    """
+    return next(
+        (build for build in builds if getattr(build, "offered", True)), builds[0]
+    )
 
 
 def list_all_builds(token: str, app_id: str) -> list[AvailableBuild]:
