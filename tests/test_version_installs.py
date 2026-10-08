@@ -319,3 +319,52 @@ def test_failed_versions_are_listed_even_when_none_installed(
     dialog._finish_install(None, "not_launchable")
     assert dialog.validation.text() == game_ui.ADD_GAME("not_launchable")
     dialog.close()
+
+
+@pytest.mark.parametrize(
+    ("start", "thread_name"),
+    [
+        ("_load_versions", "riftlift-list-versions"),
+        ("_check_catalog", "riftlift-link-validation"),
+    ],
+)
+def test_a_link_check_finishing_after_the_dialog_is_gone_is_dropped(
+    app, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, start: str, thread_name: str
+) -> None:
+    import threading
+
+    import shiboken6
+
+    from riftlift import game_ui
+
+    started, release = threading.Event(), threading.Event()
+
+    def slow(*_args):
+        started.set()
+        release.wait(5)
+        return game_ui.LinkCheck("Game", [Build("1", "Game", "b", "1.0", 1)])
+
+    monkeypatch.setattr(game_ui, "available_builds", lambda *_a: slow().builds)
+    monkeypatch.setattr(game_ui, "check_store_link", slow)
+    monkeypatch.setattr(game_ui, "_is_signed_in", lambda _paths: True)
+    crashes = []
+    monkeypatch.setattr(threading, "excepthook", crashes.append)
+    url = "https://www.meta.com/experiences/pcvr/game/1234567890/"
+    dialog = game_ui.StoreGameDialog(_paths(tmp_path), lambda: None)
+    dialog.entry.setText(url)
+    dialog.timer.stop()
+
+    if start == "_load_versions":
+        dialog._load_versions(url)
+    else:
+        dialog._check_catalog()
+    assert started.wait(5)
+    worker = next(t for t in threading.enumerate() if t.name == thread_name)
+    # Quitting deletes the dialog's event objects while the worker still runs.
+    shiboken6.delete(dialog.events)
+    release.set()
+    worker.join(5)
+
+    assert not worker.is_alive()
+    assert crashes == []
+    dialog.close()

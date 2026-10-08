@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 import threading
 from collections.abc import Callable
@@ -254,6 +255,16 @@ _INSTALL_ERRORS = frozenset(
 )
 
 
+def _deliver(signal, *args) -> None:
+    """Hand a worker thread's result to the dialog, unless it is gone.
+
+    Quitting deletes the dialog's event objects while a link check or version
+    listing may still be running; its result then has nowhere to go.
+    """
+    with contextlib.suppress(RuntimeError):  # "Signal source has been deleted"
+        signal.emit(*args)
+
+
 class _ValidationEvents(QtCore.QObject):
     complete = QtCore.Signal(int, str, object, object)
 
@@ -423,9 +434,9 @@ class StoreGameDialog(QtWidgets.QDialog):
                 result = LinkCheck(
                     self._game_name, available_builds(self.paths, app_id)
                 )
-                self.events.complete.emit(token, url, result, None)
+                _deliver(self.events.complete, token, url, result, None)
             except Exception as error:
-                self.events.complete.emit(token, url, None, error)
+                _deliver(self.events.complete, token, url, None, error)
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-list-versions"
@@ -453,9 +464,9 @@ class StoreGameDialog(QtWidgets.QDialog):
         def worker() -> None:
             try:
                 result = check_store_link(self.paths, app_id)
-                self.events.complete.emit(token, value, result, None)
+                _deliver(self.events.complete, token, value, result, None)
             except Exception as error:
-                self.events.complete.emit(token, value, None, error)
+                _deliver(self.events.complete, token, value, None, error)
 
         threading.Thread(
             target=worker, daemon=True, name="riftlift-link-validation"
