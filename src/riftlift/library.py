@@ -212,7 +212,7 @@ def _same_build(game: Game, build: Build) -> bool:
 
 
 def _folder_build(paths: Paths, slug: str) -> str | None:
-    """Return the binary ID downloaded into a game folder, if it is known."""
+    """Return the binary ID a game folder holds or is downloading, if known."""
     try:
         return (paths.games / slug / BUILD_MARKER).read_text().strip() or None
     except (FileNotFoundError, OSError, UnicodeError):
@@ -286,6 +286,10 @@ def add(
         force=separate_version,
     )
     directory = paths.games / slug
+    # Claim the folder before downloading: a paused download then resumes
+    # into it instead of leaving it behind for a new folder.
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / BUILD_MARKER).write_text(build.binary_id + "\n")
     print(f"Downloading {build.app_name} {build.version}...")
     workers = default_download_workers() if jobs is None else jobs
     print(f"Using {workers} download workers.")
@@ -296,8 +300,6 @@ def add(
         _download_path(paths.cache / "segments"),
         workers,
     ).run(manifest)
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / BUILD_MARKER).write_text(build.binary_id + "\n")
     try:
         launch_file = _best_executable(directory, manifest, executable)
     except ValueError as error:

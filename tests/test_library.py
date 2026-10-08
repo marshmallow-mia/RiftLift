@@ -581,6 +581,49 @@ def test_a_downloaded_build_that_cannot_launch_says_where_its_files_are(
     assert not (paths.data / "games" / "old-game.json").exists()
 
 
+def test_a_paused_version_resumes_into_its_own_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from meta_pcvr_downloader.api import Build
+
+    from riftlift import library
+
+    paths = _paths(tmp_path)
+    build = Build("1", "Old Game", "b-old", "1.0", 1)
+    monkeypatch.setattr(library, "account_tokens", lambda *_args: ["token"])
+    monkeypatch.setattr(
+        library, "fetch_manifest", lambda _t, _b: {"launchFile": "a.exe"}
+    )
+    monkeypatch.setattr(library, "populate_game_metadata", lambda *_args: None)
+
+    class Paused(Exception):
+        pass
+
+    class PausedDownloader:
+        def __init__(self, _token, _build, directory, _cache, _workers):
+            self.directory = directory
+
+        def run(self, _manifest):
+            self.directory.mkdir(parents=True, exist_ok=True)
+            (self.directory / "a.exe.part").write_bytes(b"partial")
+            raise Paused
+
+    class FinishingDownloader(PausedDownloader):
+        def run(self, _manifest):
+            _pe64(self.directory / "a.exe")
+
+    monkeypatch.setattr(library, "Downloader", PausedDownloader)
+    with pytest.raises(Paused):
+        library.add(paths, "1", builds=[build], separate_version=True)
+
+    monkeypatch.setattr(library, "Downloader", FinishingDownloader)
+    game = library.add(paths, "1", builds=[build], separate_version=True)
+
+    assert game.slug == "old-game-1-0"
+    assert [folder.name for folder in paths.games.iterdir()] == ["old-game-1-0"]
+    assert (paths.games / "old-game-1-0" / "a.exe.part").exists()
+
+
 def test_unregistered_download_folders_are_not_overwritten(tmp_path: Path) -> None:
     from meta_pcvr_downloader.api import Build
 
