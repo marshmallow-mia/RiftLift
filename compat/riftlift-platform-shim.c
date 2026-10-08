@@ -99,6 +99,14 @@ static bool real_platform_initialized(void)
     return convert.target && convert.target();
 }
 
+/* Online mode hands requests to Meta's implementation, but only once it
+ * runs: the local initializers never start it, and unstarted it answers
+ * nothing (requests come back as 0 and the game waits forever). */
+static bool forward_to_meta(void)
+{
+    return !offline_compat() && real_platform_initialized();
+}
+
 static void log_call(const char *name)
 {
     char temp[MAX_PATH];
@@ -317,7 +325,7 @@ __declspec(dllexport) uint64_t __cdecl ovr_Entitlement_GetIsViewerEntitled(void)
 __declspec(dllexport) uint64_t __cdecl ovr_Achievements_GetAllDefinitions(void)
 {
     typedef uint64_t(__cdecl *function_type)(void);
-    if (!offline_compat()) {
+    if (forward_to_meta()) {
         union { FARPROC source; function_type target; } convert = {real_proc("ovr_Achievements_GetAllDefinitions")};
         return convert.target ? convert.target() : 0;
     }
@@ -328,7 +336,7 @@ __declspec(dllexport) uint64_t __cdecl ovr_Achievements_GetAllDefinitions(void)
 __declspec(dllexport) uint64_t __cdecl ovr_Achievements_GetAllProgress(void)
 {
     typedef uint64_t(__cdecl *function_type)(void);
-    if (!offline_compat()) {
+    if (forward_to_meta()) {
         union { FARPROC source; function_type target; } convert = {real_proc("ovr_Achievements_GetAllProgress")};
         return convert.target ? convert.target() : 0;
     }
@@ -341,7 +349,7 @@ __declspec(dllexport) uint64_t __cdecl ovr_Achievements_GetAllProgress(void)
 __declspec(dllexport) uint64_t __cdecl ovr_Achievements_Unlock(const char *name)
 {
     typedef uint64_t(__cdecl *function_type)(const char *);
-    if (!offline_compat()) {
+    if (forward_to_meta()) {
         union { FARPROC source; function_type target; } convert = {real_proc("ovr_Achievements_Unlock")};
         return convert.target ? convert.target(name) : 0;
     }
@@ -381,7 +389,7 @@ __declspec(dllexport) const char *__cdecl ovr_AchievementUpdate_GetName(const vo
 __declspec(dllexport) uint64_t __cdecl ovr_CloudStorage_LoadBucketMetadata(const char *bucket)
 {
     typedef uint64_t(__cdecl *function_type)(const char *);
-    if (!offline_compat()) {
+    if (forward_to_meta()) {
         union { FARPROC source; function_type target; } convert = {real_proc("ovr_CloudStorage_LoadBucketMetadata")};
         return convert.target ? convert.target(bucket) : 0;
     }
@@ -405,7 +413,7 @@ __declspec(dllexport) uint64_t __cdecl ovr_CloudStorage_Load(const char *bucket,
 __declspec(dllexport) uint64_t __cdecl ovr_User_GetLoggedInUserFriends(void)
 {
     typedef uint64_t(__cdecl *function_type)(void);
-    if (!offline_compat()) {
+    if (forward_to_meta()) {
         union { FARPROC source; function_type target; } convert = {real_proc("ovr_User_GetLoggedInUserFriends")};
         return convert.target ? convert.target() : 0;
     }

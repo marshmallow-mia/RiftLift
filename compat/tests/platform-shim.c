@@ -52,7 +52,12 @@ int main(void) {
     CHECK(ovr_Message_GetType(message) == MSG_ASSET_LIST);
     CHECK(ovr_AssetDetailsArray_GetSize(ovr_Message_GetAssetDetailsArray(message)) == 0);
     ovr_FreeMessage(message);
-    CHECK(ovr_Achievements_Unlock("first") == 81);
+    /* Online, but Meta's implementation never started: answered locally too. */
+    request = ovr_Achievements_Unlock("first");
+    message = ovr_PopMessage();
+    CHECK(ovr_Message_GetType(message) == MSG_ACHIEVEMENT_UNLOCK);
+    CHECK(ovr_Message_GetRequestID(message) == request);
+    ovr_FreeMessage(message);
     _putenv("RIFTLIFT_PLATFORM_OFFLINE=1");
     request = ovr_Achievements_Unlock("first");
     message = ovr_PopMessage();
@@ -86,6 +91,8 @@ int main(void) {
     CHECK(ovr_AssetDetailsArray_GetSize(&real_object) == 3);
     CHECK(!strcmp(ovr_User_GetDisplayName(&real_object), "Real user"));
     CHECK(ovr_User_GetPresenceStatus(&real_object) == 2);
+    /* Online with Meta's implementation running: its own unlock answers. */
+    CHECK(ovr_Achievements_Unlock("first") == 81);
     puts("Platform async initialization, profile lifetime, local asset enumeration, achievement unlocks, uninitialized polling and native forwarding tests passed");
     return 0;
 }
