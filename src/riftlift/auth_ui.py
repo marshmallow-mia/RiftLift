@@ -7,7 +7,13 @@ from concurrent.futures import Future, ThreadPoolExecutor
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .auth import accounts, complete_browser_login, prepare_login, sign_out
+from .auth import (
+    accounts,
+    complete_browser_login,
+    complete_login,
+    prepare_login,
+    sign_out,
+)
 from .auth_browser import default_browser, launch_browser_login, stop_browser
 from .config import Paths
 from .i18n import namespace
@@ -83,6 +89,42 @@ class AuthDialog(QtWidgets.QDialog):
         self.copy_link.clicked.connect(self._copy_link)
         link_row.addWidget(self.copy_link)
         link_layout.addLayout(link_row)
+
+        # Fallback, only on request: paste the oculus:// address Meta sends the
+        # browser to, for when nothing hands it to RiftLift (no URL handler).
+        self.paste_toggle = QtWidgets.QPushButton(AUTH("paste_toggle"))
+        self.paste_toggle.setObjectName("link")
+        self.paste_toggle.setAccessibleName(AUTH("paste_toggle"))
+        self.paste_toggle.clicked.connect(self._show_paste)
+        link_layout.addWidget(self.paste_toggle, alignment=QtCore.Qt.AlignLeft)
+        self.paste_section = QtWidgets.QWidget()
+        paste_layout = QtWidgets.QVBoxLayout(self.paste_section)
+        paste_layout.setContentsMargins(0, 0, 0, 0)
+        paste_layout.setSpacing(6)
+        paste_hint = QtWidgets.QLabel(AUTH("paste_hint"))
+        paste_hint.setObjectName("muted")
+        paste_hint.setWordWrap(True)
+        paste_layout.addWidget(paste_hint)
+        self._wrapped.append(paste_hint)
+        paste_row = QtWidgets.QHBoxLayout()
+        self.callback_entry = QtWidgets.QLineEdit()
+        self.callback_entry.setPlaceholderText("oculus://…")
+        self.callback_entry.setAccessibleName(AUTH("paste_label"))
+        self.callback_entry.returnPressed.connect(self._submit_callback)
+        paste_row.addWidget(self.callback_entry, 1)
+        self.finish_button = QtWidgets.QPushButton(AUTH("finish_sign_in"))
+        self.finish_button.setAccessibleName(AUTH("finish_sign_in"))
+        self.finish_button.clicked.connect(self._submit_callback)
+        paste_row.addWidget(self.finish_button)
+        paste_layout.addLayout(paste_row)
+        self.paste_error = QtWidgets.QLabel()
+        self.paste_error.setObjectName("muted")
+        self.paste_error.setWordWrap(True)
+        self.paste_error.hide()
+        paste_layout.addWidget(self.paste_error)
+        self._wrapped.append(self.paste_error)
+        self.paste_section.hide()
+        link_layout.addWidget(self.paste_section)
         self.link_section.hide()
         layout.addWidget(self.link_section)
         self._copied_timer = QtCore.QTimer(self)
@@ -238,7 +280,31 @@ class AuthDialog(QtWidgets.QDialog):
     def _hide_link(self):
         self.link.clear()
         self.link_section.hide()
+        self.paste_section.hide()
+        self.paste_toggle.show()
+        self.callback_entry.clear()
+        self.paste_error.hide()
         self._fit_text()
+
+    def _show_paste(self):
+        self.paste_toggle.hide()
+        self.paste_section.show()
+        self.callback_entry.setFocus()
+        self._fit_text()
+
+    def _submit_callback(self):
+        if self.operation != "waiting":
+            return
+        try:
+            complete_login(self.paths, self.callback_entry.text().strip())
+        except Exception as error:
+            self.paste_error.setText(str(error))
+            self.paste_error.show()
+            self._fit_text()
+            return
+        self.paste_error.hide()
+        # The waiting sign-in picks the callback up and verifies it with Meta.
+        self.check_login()
 
     def _copy_link(self):
         QtGui.QGuiApplication.clipboard().setText(self.link.text())

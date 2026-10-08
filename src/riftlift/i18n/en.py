@@ -224,6 +224,14 @@ STRINGS = {
         "link_label": "Meta sign-in link",
         "copy_link": "Copy link",
         "link_copied": "Copied",
+        "paste_toggle": "Browser didn't come back to RiftLift?",
+        "paste_hint": (
+            "After you sign in, Meta sends your browser to an address that starts "
+            "with oculus://. If RiftLift doesn't pick it up, copy that address from "
+            "your browser and paste it here."
+        ),
+        "paste_label": "Address from Meta starting with oculus://",
+        "finish_sign_in": "Finish sign-in",
         "finishing": "Finishing sign-in securely…",
         "signed_in_returning": "Signed in. Returning to RiftLift…",
         "try_again": "Try again",

@@ -8,6 +8,7 @@ if os.name != "nt":
 
 from PySide6 import QtGui, QtWidgets
 
+from riftlift.auth import accounts
 from riftlift.auth_browser import Browser
 from riftlift.auth_ui import AuthDialog
 from riftlift.config import Paths
@@ -163,5 +164,81 @@ def test_wrapped_dialog_text_is_never_clipped(tmp_path, monkeypatch) -> None:
     for label in dialog.findChildren(QtWidgets.QLabel):
         if label.isVisible() and label.wordWrap():
             assert label.height() >= label.heightForWidth(label.width()), label.text()
+    dialog.close()
+    app.processEvents()
+
+
+def _waiting_dialog(tmp_path, monkeypatch, token="FRL" + "a" * 176):
+    paths = _paths(tmp_path)
+    callback = paths.config / "meta-auth-callback"
+    session = SimpleNamespace(
+        login_url=LOGIN_URL,
+        callback_ready=callback.is_file,
+        complete=lambda: token,
+    )
+    monkeypatch.setattr("riftlift.auth_ui.QtCore.QTimer.singleShot", lambda *_: None)
+    monkeypatch.setattr(
+        "riftlift.auth_ui.default_browser",
+        lambda: (_ for _ in ()).throw(RiftLiftError("no default browser")),
+    )
+    monkeypatch.setattr(
+        "riftlift.auth_ui.MetaAuthSession.begin", lambda _paths: session
+    )
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    dialog = AuthDialog(paths)
+    dialog.show()
+    dialog.start()
+    assert _wait_until(
+        app, lambda: dialog.pending is not None and dialog.pending.done()
+    )
+    dialog.check_login()
+    assert dialog.operation == "waiting"
+    return app, dialog, paths
+
+
+def test_pasting_the_callback_is_hidden_until_asked_for(tmp_path, monkeypatch) -> None:
+    app, dialog, _ = _waiting_dialog(tmp_path, monkeypatch)
+
+    assert dialog.paste_toggle.isVisible()
+    assert not dialog.paste_section.isVisible()
+    dialog.paste_toggle.click()
+    assert dialog.paste_section.isVisible()
+    assert not dialog.paste_toggle.isVisible()
+    dialog.close()
+    app.processEvents()
+
+
+def test_a_pasted_callback_finishes_the_sign_in(tmp_path, monkeypatch) -> None:
+    token = "FRL" + "b" * 176
+    app, dialog, paths = _waiting_dialog(tmp_path, monkeypatch, token)
+    dialog.paste_toggle.click()
+
+    dialog.callback_entry.setText("  oculus://login?token=abc&blob=xyz  ")
+    dialog.finish_button.click()
+    assert dialog.operation == "complete"
+    assert _wait_until(
+        app, lambda: dialog.pending is not None and dialog.pending.done()
+    )
+    dialog.check_login()
+
+    assert dialog.completed
+    assert [account.token for account in accounts(paths)] == [token]
+    dialog.close()
+    app.processEvents()
+
+
+def test_a_pasted_address_that_is_not_meta_s_callback_is_refused(
+    tmp_path, monkeypatch
+) -> None:
+    app, dialog, paths = _waiting_dialog(tmp_path, monkeypatch)
+    dialog.paste_toggle.click()
+
+    dialog.callback_entry.setText("https://auth.meta.com/native_sso/confirm")
+    dialog.finish_button.click()
+
+    assert dialog.operation == "waiting"
+    assert dialog.paste_error.isVisible()
+    assert "oculus://" in dialog.paste_error.text()
+    assert not (paths.config / "meta-auth-callback").exists()
     dialog.close()
     app.processEvents()
