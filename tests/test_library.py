@@ -478,7 +478,15 @@ def test_add_all_versions_continues_after_a_failed_build(
     calls = []
 
     def fake_add(
-        _paths, _app, *, build_selector, builds, separate_version, jobs, on_finalizing
+        _paths,
+        _app,
+        *,
+        build_selector,
+        builds,
+        separate_version,
+        jobs,
+        on_finalizing,
+        catalog,
     ):
         calls.append(build_selector)
         assert separate_version
@@ -622,6 +630,52 @@ def test_a_paused_version_resumes_into_its_own_folder(
     assert game.slug == "old-game-1-0"
     assert [folder.name for folder in paths.games.iterdir()] == ["old-game-1-0"]
     assert (paths.games / "old-game-1-0" / "a.exe.part").exists()
+
+
+def test_every_version_fetches_the_store_details_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from meta_pcvr_downloader.api import Build
+
+    from riftlift import library
+
+    paths = _paths(tmp_path)
+    builds = [Build("1", "Old Game", f"b{n}", f"1.{n}", n) for n in (3, 2, 1)]
+    monkeypatch.setattr(library, "account_tokens", lambda *_args: ["token"])
+    monkeypatch.setattr(
+        library, "fetch_manifest", lambda _t, _b: {"launchFile": "a.exe"}
+    )
+
+    class Downloader:
+        def __init__(self, _token, _build, directory, _cache, _workers):
+            self.directory = directory
+
+        def run(self, _manifest):
+            _pe64(self.directory / "a.exe")
+
+    fetched = []
+
+    def populate(paths, game):
+        fetched.append(game.slug)
+        art = paths.data / "artwork" / game.slug
+        art.mkdir(parents=True)
+        (art / "grid.png").write_bytes(b"png")
+        game.description = "From the store"
+        game.artwork = {"grid": str(art / "grid.png")}
+        game.save(paths)
+
+    monkeypatch.setattr(library, "Downloader", Downloader)
+    monkeypatch.setattr(library, "populate_game_metadata", populate)
+
+    installed, failed = library.add_all_versions(paths, "1", builds=builds)
+
+    assert not failed
+    assert fetched == ["old-game-1-3"]
+    for game in installed:
+        saved = Game.load(paths, game.slug)
+        assert saved.description == "From the store"
+        assert Path(saved.artwork["grid"]).parent.name == game.slug
+        assert Path(saved.artwork["grid"]).read_bytes() == b"png"
 
 
 def test_unregistered_download_folders_are_not_overwritten(tmp_path: Path) -> None:

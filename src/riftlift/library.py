@@ -266,12 +266,14 @@ def add(
     on_finalizing: Callable[[], None] | None = None,
     builds: list[Build] | None = None,
     separate_version: bool = False,
+    catalog: Game | None = None,
 ) -> Game:
     """Download one build and add it to the library.
 
     ``builds`` lets callers that already listed the builds skip a second
     request. ``separate_version`` forces a versioned folder even when no other
-    version is installed yet.
+    version is installed yet. ``catalog`` is another version of the same game
+    whose store details and artwork are copied instead of fetched again.
     """
     if build_selector == ALL_BUILDS:
         raise ValueError("use add_all_versions to download every build")
@@ -324,11 +326,32 @@ def add(
     if on_finalizing is not None:
         on_finalizing()
     game.save(paths)
+    if catalog is not None:
+        _copy_catalog(paths, catalog, game)
+        return game
     try:
         populate_game_metadata(paths, game)
     except RiftLiftError as error:
         print(f"warning: catalog metadata was not available: {error}")
     return game
+
+
+def _copy_catalog(paths: Paths, source: Game, game: Game) -> None:
+    """Give ``game`` the store details and artwork of another version of it."""
+    game.store_url = source.store_url
+    game.description = source.description
+    game.description_lang = source.description_lang
+    game.developer = source.developer
+    game.publisher = source.publisher
+    game.genres = list(source.genres)
+    artwork = paths.data / "artwork"
+    if source.artwork and (artwork / source.slug).is_dir():
+        shutil.copytree(artwork / source.slug, artwork / game.slug, dirs_exist_ok=True)
+        game.artwork = {
+            kind: str(artwork / game.slug / Path(path).name)
+            for kind, path in source.artwork.items()
+        }
+    game.save(paths)
 
 
 def add_all_versions(
@@ -349,22 +372,27 @@ def add_all_versions(
         builds = available_builds(paths, app)
     installed: list[Game] = []
     failed: list[tuple[Build, Exception]] = []
+    # Every version shares the store page: fetch it once, not once per version,
+    # which also keeps Meta from rate-limiting the rest of the run.
+    catalog: Game | None = None
     for index, build in enumerate(builds, start=1):
         print(f"Version {index}/{len(builds)}: {build_label(build)}")
         if on_build is not None:
             on_build(index, len(builds), build)
         try:
-            installed.append(
-                add(
-                    paths,
-                    app,
-                    build_selector=build.binary_id,
-                    jobs=jobs,
-                    builds=builds,
-                    separate_version=True,
-                    on_finalizing=on_finalizing,
-                )
+            game = add(
+                paths,
+                app,
+                build_selector=build.binary_id,
+                jobs=jobs,
+                builds=builds,
+                separate_version=True,
+                on_finalizing=on_finalizing,
+                catalog=catalog,
             )
+            installed.append(game)
+            if catalog is None and game.description:
+                catalog = game
         except Exception as error:  # keep downloading the remaining builds
             print(f"warning: {build_label(build)} failed: {error}")
             failed.append((build, error))
