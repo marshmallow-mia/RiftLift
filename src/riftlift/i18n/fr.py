@@ -214,9 +214,20 @@ STRINGS = {
         "cancel_sign_in": "Annuler la connexion",
         "waiting_for_meta": "En attente de Meta dans {browser}…",
         "browser_open_failed": (
-            "Impossible d'ouvrir le navigateur pour la connexion Meta. "
-            "Réessaie quand tu es prêt."
+            "Impossible d'ouvrir le navigateur pour la connexion Meta. Copie "
+            "plutôt le lien ci-dessous dans n'importe quel navigateur."
         ),
+        "no_browser": (
+            "Aucun navigateur par défaut trouvé. Copie le lien ci-dessous dans le "
+            "navigateur avec lequel tu veux te connecter."
+        ),
+        "link_hint": (
+            "Tu préfères un autre navigateur ? Copie ce lien dedans. Garde-le pour "
+            "toi : il connecte ce RiftLift."
+        ),
+        "link_label": "Lien de connexion Meta",
+        "copy_link": "Copier le lien",
+        "link_copied": "Copié",
         "finishing": "Finalisation sécurisée de la connexion…",
         "signed_in_returning": "Connecté. Retour à RiftLift…",
         "try_again": "Réessayer",

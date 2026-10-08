@@ -210,8 +210,20 @@ STRINGS = {
         "cancel_sign_in": "Cancel sign-in",
         "waiting_for_meta": "Waiting for Meta in {browser}…",
         "browser_open_failed": (
-            "Could not open the browser for Meta sign-in. Try again when ready."
+            "Could not open the browser for Meta sign-in. Copy the link below "
+            "into any browser instead."
         ),
+        "no_browser": (
+            "No default browser was found. Copy the link below into the browser "
+            "you want to sign in with."
+        ),
+        "link_hint": (
+            "Prefer another browser? Copy this link into it. Keep it to yourself: "
+            "it signs in this RiftLift."
+        ),
+        "link_label": "Meta sign-in link",
+        "copy_link": "Copy link",
+        "link_copied": "Copied",
         "finishing": "Finishing sign-in securely…",
         "signed_in_returning": "Signed in. Returning to RiftLift…",
         "try_again": "Try again",
