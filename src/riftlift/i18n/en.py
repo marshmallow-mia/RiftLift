@@ -209,33 +209,27 @@ STRINGS = {
         "preparing": "Preparing a secure Meta sign-in…",
         "cancel_sign_in": "Cancel sign-in",
         "waiting_for_meta": "Waiting for Meta in {browser}…",
-        "browser_open_failed": (
-            "Could not open the browser for Meta sign-in. Copy the link below "
-            "into any browser instead."
-        ),
-        "no_browser": (
-            "No default browser was found. Copy the link below into the browser "
-            "you want to sign in with."
-        ),
-        "link_hint": (
-            "Prefer another browser? Copy this link into it. Keep it to yourself: "
-            "it signs in this RiftLift."
-        ),
         "link_label": "Meta sign-in link",
         "copy_link": "Copy link",
         "link_copied": "Copied",
-        "paste_toggle": "Browser didn't come back to RiftLift?",
-        "paste_hint": (
-            "After you sign in, Meta sends your browser to an address that starts "
-            "with oculus://. If RiftLift doesn't pick it up, copy that address from "
-            "your browser and paste it here."
-        ),
         "paste_label": "Address from Meta starting with oculus://",
-        "finish_sign_in": "Finish sign-in",
         "finishing": "Finishing sign-in securely…",
         "signed_in_returning": "Signed in. Returning to RiftLift…",
         "try_again": "Try again",
         "signed_out": "Signed out. Open your default browser when ready.",
+        "browser_open_failed": (
+            "Could not open the browser for Meta sign-in. Sign in manually below."
+        ),
+        "no_browser": "No default browser was found. Sign in manually below.",
+        "manual_toggle": "Sign in manually",
+        "manual_step_open": "1. Open this link in any browser and sign in to Meta.",
+        "manual_step_paste": (
+            "2. When Meta's Continue button seems to do nothing, copy the address "
+            "that starts with oculus:// and paste it here."
+        ),
+        "paste_not_callback": "That isn't the address from Meta. It starts with oculus://.",
+        "manual_help": "How do I find that address?",
+        "finish_sign_in": "Sign in",
     },
     "settings": {
         "windows_system_check_explanation": "Checks the Windows VR runtime and writes a diagnostic report to Activity.",

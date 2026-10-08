@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from concurrent.futures import Future, ThreadPoolExecutor
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -22,6 +23,14 @@ from .theme import STYLE
 from .titlebar import wrap_dialog
 
 AUTH = namespace("auth")
+# The callback inside whatever was pasted: a browser console message copied
+# whole carries it between quotes (Chrome) or curly quotes (Firefox).
+_CALLBACK_IN_TEXT = re.compile(
+    r"oculus(?:-client)?://[^\s'\"\u2018\u2019\u201c\u201d<>]+", re.I
+)
+MANUAL_SIGN_IN_GUIDE = (
+    "https://github.com/Villagers654/RiftLift/blob/main/docs/MANUAL_SIGN_IN.md"
+)
 
 
 class AuthDialog(QtWidgets.QDialog):
@@ -69,16 +78,24 @@ class AuthDialog(QtWidgets.QDialog):
         layout.addWidget(self.status)
         self._wrapped.append(self.status)
 
-        # The sign-in link, for another browser or when none could be opened.
-        self.link_section = QtWidgets.QWidget()
-        link_layout = QtWidgets.QVBoxLayout(self.link_section)
-        link_layout.setContentsMargins(0, 0, 0, 0)
-        link_layout.setSpacing(6)
-        link_hint = QtWidgets.QLabel(AUTH("link_hint"))
-        link_hint.setObjectName("muted")
-        link_hint.setWordWrap(True)
-        link_layout.addWidget(link_hint)
-        self._wrapped.append(link_hint)
+        # Manual sign-in, behind one quiet button: open the link in any browser,
+        # then paste the oculus:// address Meta sends that browser to. It opens
+        # by itself only when RiftLift couldn't open a browser.
+        self.manual_toggle = QtWidgets.QPushButton(AUTH("manual_toggle"))
+        self.manual_toggle.setObjectName("link")
+        self.manual_toggle.setAccessibleName(AUTH("manual_toggle"))
+        self.manual_toggle.clicked.connect(self._open_manual)
+        self.manual_toggle.hide()
+        layout.addWidget(self.manual_toggle, alignment=QtCore.Qt.AlignLeft)
+
+        self.manual_section = QtWidgets.QWidget()
+        manual_layout = QtWidgets.QVBoxLayout(self.manual_section)
+        manual_layout.setContentsMargins(0, 0, 0, 0)
+        manual_layout.setSpacing(6)
+        step_open = QtWidgets.QLabel(AUTH("manual_step_open"))
+        step_open.setWordWrap(True)
+        manual_layout.addWidget(step_open)
+        self._wrapped.append(step_open)
         link_row = QtWidgets.QHBoxLayout()
         self.link = QtWidgets.QLineEdit()
         self.link.setReadOnly(True)
@@ -88,24 +105,12 @@ class AuthDialog(QtWidgets.QDialog):
         self.copy_link.setAccessibleName(AUTH("copy_link"))
         self.copy_link.clicked.connect(self._copy_link)
         link_row.addWidget(self.copy_link)
-        link_layout.addLayout(link_row)
-
-        # Fallback, only on request: paste the oculus:// address Meta sends the
-        # browser to, for when nothing hands it to RiftLift (no URL handler).
-        self.paste_toggle = QtWidgets.QPushButton(AUTH("paste_toggle"))
-        self.paste_toggle.setObjectName("link")
-        self.paste_toggle.setAccessibleName(AUTH("paste_toggle"))
-        self.paste_toggle.clicked.connect(self._show_paste)
-        link_layout.addWidget(self.paste_toggle, alignment=QtCore.Qt.AlignLeft)
-        self.paste_section = QtWidgets.QWidget()
-        paste_layout = QtWidgets.QVBoxLayout(self.paste_section)
-        paste_layout.setContentsMargins(0, 0, 0, 0)
-        paste_layout.setSpacing(6)
-        paste_hint = QtWidgets.QLabel(AUTH("paste_hint"))
-        paste_hint.setObjectName("muted")
-        paste_hint.setWordWrap(True)
-        paste_layout.addWidget(paste_hint)
-        self._wrapped.append(paste_hint)
+        manual_layout.addLayout(link_row)
+        manual_layout.addSpacing(8)
+        step_paste = QtWidgets.QLabel(AUTH("manual_step_paste"))
+        step_paste.setWordWrap(True)
+        manual_layout.addWidget(step_paste)
+        self._wrapped.append(step_paste)
         paste_row = QtWidgets.QHBoxLayout()
         self.callback_entry = QtWidgets.QLineEdit()
         self.callback_entry.setPlaceholderText("oculus://…")
@@ -116,17 +121,20 @@ class AuthDialog(QtWidgets.QDialog):
         self.finish_button.setAccessibleName(AUTH("finish_sign_in"))
         self.finish_button.clicked.connect(self._submit_callback)
         paste_row.addWidget(self.finish_button)
-        paste_layout.addLayout(paste_row)
+        manual_layout.addLayout(paste_row)
         self.paste_error = QtWidgets.QLabel()
         self.paste_error.setObjectName("muted")
         self.paste_error.setWordWrap(True)
         self.paste_error.hide()
-        paste_layout.addWidget(self.paste_error)
+        manual_layout.addWidget(self.paste_error)
         self._wrapped.append(self.paste_error)
-        self.paste_section.hide()
-        link_layout.addWidget(self.paste_section)
-        self.link_section.hide()
-        layout.addWidget(self.link_section)
+        self.help_link = QtWidgets.QPushButton(AUTH("manual_help"))
+        self.help_link.setObjectName("link")
+        self.help_link.setAccessibleName(AUTH("manual_help"))
+        self.help_link.clicked.connect(self._open_guide)
+        manual_layout.addWidget(self.help_link, alignment=QtCore.Qt.AlignLeft)
+        self.manual_section.hide()
+        layout.addWidget(self.manual_section)
         self._copied_timer = QtCore.QTimer(self)
         self._copied_timer.setSingleShot(True)
         self._copied_timer.setInterval(2000)
@@ -215,7 +223,7 @@ class AuthDialog(QtWidgets.QDialog):
             # Not fatal: the sign-in link still works in any browser.
             browser = None
         self.browser = browser
-        self._hide_link()
+        self._hide_manual()
         self.session = None
         self.operation = "begin"
         self.pending = self.executor.submit(MetaAuthSession.begin, self.paths)
@@ -246,9 +254,10 @@ class AuthDialog(QtWidgets.QDialog):
             return
         self.pending = None
         self.operation = "waiting"
-        self._show_link(self.session.login_url)
+        self._offer_manual(self.session.login_url)
         if self.browser is None:
             self.status.setText(AUTH("no_browser"))
+            self._open_manual()
             return
         try:
             self.process = launch_browser_login(
@@ -256,6 +265,7 @@ class AuthDialog(QtWidgets.QDialog):
             )
         except Exception:
             self.status.setText(AUTH("browser_open_failed"))
+            self._open_manual()
             return
         self.status.setText(AUTH("waiting_for_meta").format(browser=self.browser.name))
 
@@ -267,37 +277,43 @@ class AuthDialog(QtWidgets.QDialog):
             )
             self.status.setText(AUTH("finishing"))
         elif self.process is not None and self.process.poll() not in (None, 0):
-            # Keep waiting: the link can still finish the sign-in elsewhere.
+            # Keep waiting: signing in manually can still finish it.
             self.process = None
             self.status.setText(AUTH("browser_open_failed"))
+            self._open_manual()
 
-    def _show_link(self, url: str):
+    def _offer_manual(self, url: str):
         self.link.setText(url)
         self.link.setCursorPosition(0)
         self.copy_link.setText(AUTH("copy_link"))
-        self.link_section.show()
+        if self.manual_section.isHidden():
+            self.manual_toggle.show()
         self._fit_text()
 
-    def _hide_link(self):
+    def _open_manual(self):
+        self.manual_toggle.hide()
+        self.manual_section.show()
+        self._fit_text()
+
+    def _hide_manual(self):
         self.link.clear()
-        self.link_section.hide()
-        self.paste_section.hide()
-        self.paste_toggle.show()
         self.callback_entry.clear()
         self.paste_error.hide()
+        self.manual_toggle.hide()
+        self.manual_section.hide()
         self._fit_text()
 
-    def _show_paste(self):
-        self.paste_toggle.hide()
-        self.paste_section.show()
-        self.callback_entry.setFocus()
-        self._fit_text()
+    def _open_guide(self):
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(MANUAL_SIGN_IN_GUIDE))
 
     def _submit_callback(self):
         if self.operation != "waiting":
             return
+        found = _CALLBACK_IN_TEXT.search(self.callback_entry.text())
         try:
-            complete_login(self.paths, self.callback_entry.text().strip())
+            if found is None:
+                raise ValueError(AUTH("paste_not_callback"))
+            complete_login(self.paths, found.group(0))
         except Exception as error:
             self.paste_error.setText(str(error))
             self.paste_error.show()
@@ -327,14 +343,14 @@ class AuthDialog(QtWidgets.QDialog):
             self.changed = True
             self.show_accounts()
             self.status.setText(AUTH("signed_in_returning"))
-            self._hide_link()
+            self._hide_manual()
             self._stop_browser()
             QtCore.QTimer.singleShot(500, self.accept)
 
     def show_error(self, error):
         self.timer.stop()
         self._stop_browser()
-        self._hide_link()
+        self._hide_manual()
         self.pending = None
         self.operation = "idle"
         self.status.setText(str(error))
@@ -353,7 +369,7 @@ class AuthDialog(QtWidgets.QDialog):
         """Abandon the sign-in in progress; signed-in accounts stay."""
         self.timer.stop()
         self._stop_browser()
-        self._hide_link()
+        self._hide_manual()
         self.browser = None
         self.session = None
         if self.pending is not None:

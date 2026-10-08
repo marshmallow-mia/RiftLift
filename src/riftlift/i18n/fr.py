@@ -213,33 +213,32 @@ STRINGS = {
         "preparing": "Préparation d'une connexion Meta sécurisée…",
         "cancel_sign_in": "Annuler la connexion",
         "waiting_for_meta": "En attente de Meta dans {browser}…",
-        "browser_open_failed": (
-            "Impossible d'ouvrir le navigateur pour la connexion Meta. Copie "
-            "plutôt le lien ci-dessous dans n'importe quel navigateur."
-        ),
-        "no_browser": (
-            "Aucun navigateur par défaut trouvé. Copie le lien ci-dessous dans le "
-            "navigateur avec lequel tu veux te connecter."
-        ),
-        "link_hint": (
-            "Tu préfères un autre navigateur ? Copie ce lien dedans. Garde-le pour "
-            "toi : il connecte ce RiftLift."
-        ),
         "link_label": "Lien de connexion Meta",
         "copy_link": "Copier le lien",
         "link_copied": "Copié",
-        "paste_toggle": "Le navigateur n'est pas revenu à RiftLift ?",
-        "paste_hint": (
-            "Après ta connexion, Meta envoie ton navigateur vers une adresse qui "
-            "commence par oculus://. Si RiftLift ne la récupère pas, copie cette "
-            "adresse depuis ton navigateur et colle-la ici."
-        ),
         "paste_label": "Adresse de Meta commençant par oculus://",
-        "finish_sign_in": "Terminer la connexion",
         "finishing": "Finalisation sécurisée de la connexion…",
         "signed_in_returning": "Connecté. Retour à RiftLift…",
         "try_again": "Réessayer",
         "signed_out": "Déconnecté. Ouvre ton navigateur par défaut quand tu es prêt.",
+        "browser_open_failed": (
+            "Impossible d'ouvrir le navigateur pour la connexion Meta. Connecte-toi "
+            "manuellement ci-dessous."
+        ),
+        "no_browser": (
+            "Aucun navigateur par défaut trouvé. Connecte-toi manuellement ci-dessous."
+        ),
+        "manual_toggle": "Se connecter manuellement",
+        "manual_step_open": (
+            "1. Ouvre ce lien dans n'importe quel navigateur et connecte-toi à Meta."
+        ),
+        "manual_step_paste": (
+            "2. Si le bouton Continuer de Meta semble ne rien faire, copie "
+            "l'adresse qui commence par oculus:// et colle-la ici."
+        ),
+        "paste_not_callback": "Ce n'est pas l'adresse de Meta. Elle commence par oculus://.",
+        "manual_help": "Comment trouver cette adresse ?",
+        "finish_sign_in": "Se connecter",
     },
     "settings": {
         "windows_system_check_explanation": "Vérifie le runtime VR Windows et affiche un rapport dans Activité.",
