@@ -26,6 +26,7 @@
 #define MSG_USER_PROOF UINT32_C(0x22810483)
 #define MSG_ACHIEVEMENT_DEFINITIONS UINT32_C(0x03D3458D)
 #define MSG_ACHIEVEMENT_PROGRESS UINT32_C(0x4F9FDE1D)
+#define MSG_ACHIEVEMENT_UNLOCK UINT32_C(0x593CCBDD)
 #define MSG_CLOUD_BUCKET_METADATA UINT32_C(0x7327A50D)
 #define MSG_LOGGED_IN_USER_FRIENDS UINT32_C(0x587C2A8D)
 #define MSG_PLATFORM_INITIALIZE_WINDOWS_ASYNC UINT32_C(0x6DA7BA8F)
@@ -85,6 +86,17 @@ static FARPROC real_proc(const char *name)
     return module ? GetProcAddress(module, name) : NULL;
 }
 
+/* The local initializers above never start Meta's implementation, and its
+ * context-bound calls (ovr_PopMessage, ovr_GetLoggedInUserID, ...) throw a C++
+ * exception without that context. Its own ovr_IsPlatformInitialized only reads
+ * the context, so ask it before handing it any such call. */
+static bool real_platform_initialized(void)
+{
+    typedef bool(__cdecl *function_type)(void);
+    union { FARPROC source; function_type target; } convert = {real_proc("ovr_IsPlatformInitialized")};
+    return convert.target && convert.target();
+}
+
 static void log_call(const char *name)
 {
     char temp[MAX_PATH];
@@ -134,7 +146,7 @@ __declspec(dllexport) uint64_t __cdecl ovr_AssetFile_GetList(void)
     typedef uint64_t(__cdecl *user_type)(void);
     typedef uint64_t(__cdecl *request_type)(void);
     union { FARPROC source; user_type target; } user = {real_proc("ovr_GetLoggedInUserID")};
-    if (user.target && user.target()) {
+    if (real_platform_initialized() && user.target && user.target()) {
         union { FARPROC source; request_type target; } request = {real_proc("ovr_AssetFile_GetList")};
         return request.target ? request.target() : 0;
     }
@@ -293,6 +305,19 @@ __declspec(dllexport) uint64_t __cdecl ovr_Achievements_GetAllProgress(void)
     }
     log_call("achievements progress request: empty success queued");
     return enqueue(MSG_ACHIEVEMENT_PROGRESS);
+}
+
+/* Some titles unlock an achievement during startup and wait for its response
+ * before entering their render loop. */
+__declspec(dllexport) uint64_t __cdecl ovr_Achievements_Unlock(const char *name)
+{
+    typedef uint64_t(__cdecl *function_type)(const char *);
+    if (!offline_compat()) {
+        union { FARPROC source; function_type target; } convert = {real_proc("ovr_Achievements_Unlock")};
+        return convert.target ? convert.target(name) : 0;
+    }
+    log_call("achievement unlock request: local success queued");
+    return enqueue(MSG_ACHIEVEMENT_UNLOCK);
 }
 
 __declspec(dllexport) uint64_t __cdecl ovr_CloudStorage_LoadBucketMetadata(const char *bucket)
@@ -464,6 +489,9 @@ __declspec(dllexport) void *__cdecl ovr_PopMessage(void)
     }
     if (message) {
         return message;
+    }
+    if (!real_platform_initialized()) {
+        return NULL;
     }
     union {
         FARPROC source;
