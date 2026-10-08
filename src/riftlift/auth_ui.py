@@ -190,7 +190,7 @@ class AuthDialog(QtWidgets.QDialog):
         for label in self._wrapped:
             label.ensurePolished()
             # An empty label answers -1.
-            label.setMinimumHeight(max(0, label.heightForWidth(width)))
+            label.setFixedHeight(max(0, label.heightForWidth(width)))
         self.layout().activate()
         height = self.sizeHint().height()
         if height != self.height():

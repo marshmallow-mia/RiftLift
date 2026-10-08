@@ -3,6 +3,8 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 if os.name != "nt":
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -237,6 +239,27 @@ def test_wrapped_dialog_text_is_never_clipped(tmp_path, monkeypatch) -> None:
     for label in dialog.findChildren(QtWidgets.QLabel):
         if label.isVisible() and label.wordWrap():
             assert label.height() >= label.heightForWidth(label.width()), label.text()
+    _close(app, dialog)
+
+
+@pytest.mark.parametrize("browser_fails", (False, True))
+def test_wrapped_dialog_text_gets_no_extra_space(
+    tmp_path, monkeypatch, browser_fails
+) -> None:
+    def broken(*_args):
+        raise OSError("no such file")
+
+    app, dialog, _ = _waiting(
+        tmp_path,
+        monkeypatch,
+        browser=(lambda: FIREFOX) if browser_fails else _no_browser,
+        launch=broken,
+    )
+    app.processEvents()
+
+    for label in dialog.findChildren(QtWidgets.QLabel):
+        if label.isVisible() and label.wordWrap():
+            assert label.height() == label.heightForWidth(label.width()), label.text()
     _close(app, dialog)
 
 
