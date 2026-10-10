@@ -65,10 +65,15 @@ def _add_every_version(paths, url, emit, finalize):
         on_build=lambda index, total, _build: emit("version", index=index, total=total),
         on_finalizing=finalize,
     )
-    # Version labels and a failure kind only: error text may hold credentials.
+    # Error text may hold credentials; describe_error strips URLs and tokens.
     for build, error in failed:
         kind = "not_launchable" if isinstance(error, NotLaunchableError) else "failed"
-        emit("failed", label=build_label(build), kind=kind)
+        emit(
+            "failed",
+            label=build_label(build),
+            kind=kind,
+            detail=describe_error(error),
+        )
     if not installed:
         raise RuntimeError("no version could be installed")
     return installed[0]

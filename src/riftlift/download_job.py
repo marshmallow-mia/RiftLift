@@ -41,6 +41,8 @@ class DownloadJob(QtCore.QObject):
             self.request["build"] = build_selector
         # (version label, "not_launchable" | "failed") for every-version installs.
         self.failed_versions: list[tuple[str, str]] = []
+        # "label: why" for each of them, for the Activity log.
+        self.failed_version_details: list[str] = []
         self.process = QtCore.QProcess(self)
         self.process.readyReadStandardOutput.connect(self._read)
         self.process.readyReadStandardError.connect(
@@ -148,12 +150,12 @@ class DownloadJob(QtCore.QObject):
             self.version.emit(int(event["index"]), int(event["total"]))
             return
         failure = event["kind"]
+        label = str(event["label"])[:80]
         self.failed_versions.append(
-            (
-                str(event["label"])[:80],
-                failure if failure == "not_launchable" else "failed",
-            )
+            (label, failure if failure == "not_launchable" else "failed")
         )
+        if detail := str(event.get("detail") or "")[:300]:
+            self.failed_version_details.append(f"{label}: {detail}")
 
     def _process_error(self, error):
         if error == QtCore.QProcess.FailedToStart:

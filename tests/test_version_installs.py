@@ -295,19 +295,25 @@ def test_failed_versions_are_listed_even_when_none_installed(
 ) -> None:
     from types import SimpleNamespace
 
+    from PySide6 import QtWidgets
+
     from riftlift import game_ui
 
     notices = []
     monkeypatch.setattr(
         game_ui, "_themed_notice", lambda _parent, _title, text: notices.append(text)
     )
-    dialog = game_ui.StoreGameDialog(_paths(tmp_path), lambda: None)
+    window = QtWidgets.QWidget()
+    logged = []
+    window._append_log = logged.append
+    dialog = game_ui.StoreGameDialog(_paths(tmp_path), lambda: None, window)
     dialog._builds = [
         Build("1", "Game", "b2", "2.0", 2),
         Build("1", "Game", "b1", "1.0", 1),
     ]
     dialog._job = SimpleNamespace(
         failed_versions=[("2.0 (2)", "not_launchable"), ("1.0 (1)", "failed")],
+        failed_version_details=["1.0 (1): RuntimeError: HTTP 404"],
         error_detail="",
     )
 
@@ -315,6 +321,9 @@ def test_failed_versions_are_listed_even_when_none_installed(
 
     assert len(notices) == 1
     assert "2.0 (2)" in notices[0] and "1.0 (1)" in notices[0]
+    # The notice stays short; why each version failed goes to Activity.
+    assert "HTTP 404" not in notices[0]
+    assert logged == ["\n1.0 (1): RuntimeError: HTTP 404\n"]
     dialog._job = None
     dialog._finish_install(None, "not_launchable")
     assert dialog.validation.text() == game_ui.ADD_GAME("not_launchable")

@@ -620,12 +620,19 @@ class StoreGameDialog(QtWidgets.QDialog):
             self.progress.setRange(0, 0)
             self.validation.setText(label)
 
+    def _log(self, text: str) -> None:
+        """Add text to the library window's Activity log, if there is one."""
+        log = getattr(self.parent(), "_append_log", None)
+        if text and log is not None:
+            log(text if text.endswith("\n") else text + "\n")
+
     def _finish_install(self, game, error) -> None:
         self._busy = False
         failed = self._job.failed_versions if self._job is not None else []
         # List the failed versions even when none installed: the plain
         # failure text below cannot say which ones failed or why.
         if failed:
+            self._log("".join(f"\n{line}" for line in self._job.failed_version_details))
             details = "\n".join(
                 f"{label}: {ADD_GAME('version_' + kind)}" for label, kind in failed
             )
@@ -663,9 +670,7 @@ class StoreGameDialog(QtWidgets.QDialog):
             detail = self._job.error_detail if self._job is not None else ""
             if detail:
                 message += "\n" + detail
-                log = getattr(self.parent(), "_append_log", None)
-                if log is not None:
-                    log(f"\nDownload failed: {detail}\n")
+                self._log(f"\nDownload failed: {detail}\n")
             self.validation.setText(message)
             self.submit.setFocus()
             if self._close_when_paused:

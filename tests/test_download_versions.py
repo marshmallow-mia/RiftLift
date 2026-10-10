@@ -107,8 +107,15 @@ def test_worker_installs_every_version_and_reports_failures_by_label(
         "event": "failed",
         "label": "1.0 (2)",
         "kind": "not_launchable",
+        "detail": f"NotLaunchableError: downloaded to {Path('/games/b')}, "
+        "but RiftLift cannot launch it: 32-bit",
     }
-    assert events[5] == {"event": "failed", "label": "0.9 (1)", "kind": "failed"}
+    assert events[5] == {
+        "event": "failed",
+        "label": "0.9 (1)",
+        "kind": "failed",
+        "detail": "RuntimeError: GET [url] 404",
+    }
     assert "SECRET" not in json.dumps(events)
 
 
@@ -146,11 +153,19 @@ def test_job_sends_the_build_and_reads_version_events(tmp_path) -> None:
     job._finishing = True
     job._handle({"event": "version", "index": 2, "total": 3})
     job._handle({"event": "failed", "label": "1.0 (2)", "kind": "not_launchable"})
-    job._handle({"event": "failed", "label": "0.9 (1)", "kind": "anything else"})
+    job._handle(
+        {
+            "event": "failed",
+            "label": "0.9 (1)",
+            "kind": "anything else",
+            "detail": "RuntimeError: HTTP 404",
+        }
+    )
 
     assert versions == [(2, 3)]
     assert job._finishing is False  # Pause works again between versions
     assert job.failed_versions == [("1.0 (2)", "not_launchable"), ("0.9 (1)", "failed")]
+    assert job.failed_version_details == ["0.9 (1): RuntimeError: HTTP 404"]
 
 
 def test_themed_notice_keeps_wrapped_text_visible() -> None:
