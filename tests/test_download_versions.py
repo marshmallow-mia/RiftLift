@@ -86,7 +86,9 @@ def test_worker_installs_every_version_and_reports_failures_by_label(
                 failed.append((build, RuntimeError("GET https://x?token=SECRET 404")))
                 continue
             on_finalizing()
-            installed.append(Game("echo-vr", "Echo VR", "1", "k", str(tmp_path), "e.exe", []))
+            installed.append(
+                Game("echo-vr", "Echo VR", "1", "k", str(tmp_path), "e.exe", [])
+            )
         return installed, failed
 
     monkeypatch.setattr("riftlift.library.add_all_versions", add_all_versions)

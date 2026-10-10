@@ -492,7 +492,9 @@ def test_add_all_versions_continues_after_a_failed_build(
         assert separate_version
         if build_selector == "b":
             raise RuntimeError("HTTP 404")
-        return Game(f"echo-{build_selector}", "Echo VR", "1", "k", str(tmp_path), "e.exe", [])
+        return Game(
+            f"echo-{build_selector}", "Echo VR", "1", "k", str(tmp_path), "e.exe", []
+        )
 
     monkeypatch.setattr(library, "add", fake_add)
     progress = []

@@ -112,6 +112,21 @@ def list_all_builds(token: str, app_id: str) -> list[AvailableBuild]:
     return merge_builds(primary, history)
 
 
+def builds_table(builds: list[AvailableBuild]) -> list[str]:
+    """Lines listing every build, as ``riftlift builds`` prints them."""
+    lines = [
+        f"{builds[0].app_name}: {len(builds)} downloadable version(s)",
+        f"{'VERSION':<24} {'CODE':>6}  {'BINARY ID':<20} CHANNELS",
+    ]
+    for build in builds:
+        channels = ", ".join(build.channels) or "-"
+        lines.append(
+            f"{build.version:<24} {build.version_code:>6}  "
+            f"{build.binary_id:<20} {channels}"
+        )
+    return lines
+
+
 def build_label(build: Build) -> str:
     """Return a short human label, such as ``34.4.631547.1 (2202)``."""
     return f"{build.version} ({build.version_code})"

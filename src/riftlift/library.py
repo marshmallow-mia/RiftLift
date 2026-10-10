@@ -431,6 +431,19 @@ def add_all_versions(
     return installed, failed
 
 
+def all_versions_summary(
+    installed: list[Game], failed: list[tuple[Build, Exception]]
+) -> list[str]:
+    """Lines summing up add_all_versions for the command line."""
+    unlaunchable = [item for item in failed if isinstance(item[1], NotLaunchableError)]
+    return [
+        f"Installed {len(installed)} version(s); "
+        f"{len(unlaunchable)} downloaded but not launchable; "
+        f"{len(failed) - len(unlaunchable)} failed.",
+        *(f"  {build_label(build)}: {error}" for build, error in failed),
+    ]
+
+
 def remove(paths: Paths, game: Game) -> None:
     """Remove a game from RiftLift, deleting its downloaded files if RiftLift owns them."""
     if game.source == "meta":

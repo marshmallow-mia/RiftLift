@@ -13,15 +13,15 @@ if os.name != "nt":
     from meta_pcvr_downloader.download import DownloadError
 
     from .auth import accounts, complete_login, login, owned_apps, sign_out
-    from .builds import build_label
+    from .builds import builds_table
     from .config import Game, Paths, games
     from .desktop_services import doctor, launch, setup
     from .library import (
         ALL_BUILDS,
-        NotLaunchableError,
         add,
         add_all_versions,
         add_local,
+        all_versions_summary,
         available_builds,
         remove,
     )
@@ -223,29 +223,14 @@ def _run_callback(paths: Paths, arguments: argparse.Namespace) -> int:
 
 def _run_add_all(paths: Paths, arguments: argparse.Namespace) -> int:
     installed, failed = add_all_versions(paths, arguments.app, jobs=arguments.jobs)
-    unlaunchable = [item for item in failed if isinstance(item[1], NotLaunchableError)]
-    print(
-        f"Installed {len(installed)} version(s); "
-        f"{len(unlaunchable)} downloaded but not launchable; "
-        f"{len(failed) - len(unlaunchable)} failed."
-    )
-    for build, error in failed:
-        print(f"  {build_label(build)}: {error}")
+    print("\n".join(all_versions_summary(installed, failed)))
     if installed and not arguments.no_steam:
         print(f"Added to Steam ({sync_with_restart(paths)}).")
     return 1 if failed else 0
 
 
 def _run_builds(paths: Paths, arguments: argparse.Namespace) -> int:
-    builds = available_builds(paths, arguments.app)
-    print(f"{builds[0].app_name}: {len(builds)} downloadable version(s)")
-    print(f"{'VERSION':<24} {'CODE':>6}  {'BINARY ID':<20} CHANNELS")
-    for build in builds:
-        channels = ", ".join(build.channels) or "-"
-        print(
-            f"{build.version:<24} {build.version_code:>6}  "
-            f"{build.binary_id:<20} {channels}"
-        )
+    print("\n".join(builds_table(available_builds(paths, arguments.app))))
     return 0
 
 
