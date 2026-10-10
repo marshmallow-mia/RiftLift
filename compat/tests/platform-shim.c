@@ -45,7 +45,9 @@ int main(void) {
     CHECK(ovr_Message_GetUser(message) == user);
     CHECK(ovr_Message_GetString(message) == NULL);
     ovr_FreeMessage(message);
-    CHECK(ovr_User_Get(4321) == 4421);
+    /* Meta's implementation never started: other users and cloud loads can't be asked. */
+    CHECK(ovr_User_Get(4321) == 0);
+    CHECK(ovr_CloudStorage_Load("bucket", "key") == 0);
     request = ovr_AssetFile_GetList();
     message = ovr_PopMessage();
     CHECK(ovr_Message_GetRequestID(message) == request);
@@ -93,6 +95,8 @@ int main(void) {
     CHECK(ovr_User_GetPresenceStatus(&real_object) == 2);
     /* Online with Meta's implementation running: its own unlock answers. */
     CHECK(ovr_Achievements_Unlock("first") == 81);
+    CHECK(ovr_User_Get(4321) == 4421);
+    CHECK(ovr_CloudStorage_Load("bucket", "key") == 91);
     puts("Platform async initialization, profile lifetime, local asset enumeration, achievement unlocks, uninitialized polling and native forwarding tests passed");
     return 0;
 }

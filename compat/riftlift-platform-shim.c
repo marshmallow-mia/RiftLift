@@ -293,6 +293,12 @@ __declspec(dllexport) uint64_t __cdecl ovr_User_Get(uint64_t user_id)
     if (user_id == configured_user_id()) {
         return enqueue(MSG_USER);
     }
+    /* Only Meta's implementation knows other users, and unstarted it can't
+     * be asked: 0 is the Platform SDK's "request not sent". */
+    if (!real_platform_initialized()) {
+        log_call("user request for another user: Meta's platform isn't running");
+        return 0;
+    }
     union { FARPROC source; function_type target; } convert = {real_proc("ovr_User_Get")};
     return convert.target ? convert.target(user_id) : 0;
 }
@@ -406,6 +412,10 @@ __declspec(dllexport) uint64_t __cdecl ovr_CloudStorage_Load(const char *bucket,
         function_type target;
     } convert = {real_proc("ovr_CloudStorage_Load")};
     function_type function = convert.target;
+    if (!real_platform_initialized()) {
+        log_call("cloud load request: Meta's platform isn't running");
+        return 0;
+    }
     log_call("cloud load request forwarded");
     return function ? function(bucket, key) : 0;
 }

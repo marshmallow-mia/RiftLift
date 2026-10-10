@@ -13,7 +13,8 @@ __declspec(dllexport) bool ovr_IsPlatformInitialized(void) { return initialized;
 __declspec(dllexport) uint64_t ovr_GetLoggedInUserID(void) { require_context(); return user; }
 __declspec(dllexport) uint64_t ovr_AssetFile_GetList(void) { return 71; }
 __declspec(dllexport) uint64_t ovr_Achievements_Unlock(const char *name) { (void)name; require_context(); return 81; }
-__declspec(dllexport) uint64_t ovr_User_Get(uint64_t id) { return id + 100; }
+__declspec(dllexport) uint64_t ovr_User_Get(uint64_t id) { require_context(); return id + 100; }
+__declspec(dllexport) uint64_t ovr_CloudStorage_Load(const char *bucket, const char *key) { (void)bucket; (void)key; require_context(); return 91; }
 __declspec(dllexport) void *ovr_Message_GetNativeMessage(const void *p) { return (void *)p; }
 __declspec(dllexport) void *ovr_Message_GetAssetDetailsArray(const void *p) { return (void *)p; }
 __declspec(dllexport) size_t ovr_AssetDetailsArray_GetSize(const void *p) { (void)p; return 3; }
