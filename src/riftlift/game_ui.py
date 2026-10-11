@@ -293,6 +293,7 @@ class StoreGameDialog(QtWidgets.QDialog):
         self._job = None
         self._busy = False
         self._close_when_paused = False
+        self._paused = False
         self._generation = 0
         self._verified_url = ""
         self._game_name = simple_name
@@ -507,12 +508,18 @@ class StoreGameDialog(QtWidgets.QDialog):
             self.entry.setFocus()
             return
         selector = self.versions.currentData() if self.versions.count() else None
-        if selector == ALL_BUILDS and not _themed_question(
-            self,
-            ADD_GAME("all_versions").format(count=len(self._builds)),
-            ADD_GAME("all_versions_confirm").format(
-                count=len(self._builds), name=self._game_name
-            ),
+        # Resuming continues the run the question already allowed; the link and
+        # the version can't change while paused.
+        if (
+            selector == ALL_BUILDS
+            and not self._paused
+            and not _themed_question(
+                self,
+                ADD_GAME("all_versions").format(count=len(self._builds)),
+                ADD_GAME("all_versions_confirm").format(
+                    count=len(self._builds), name=self._game_name
+                ),
+            )
         ):
             return
         self._start_install(value, selector)
@@ -523,6 +530,7 @@ class StoreGameDialog(QtWidgets.QDialog):
         if self._job is not None:
             self._job.deleteLater()
         self._close_when_paused = False
+        self._paused = False
         self._version_prefix = ""
         self.sync_steam = self.steam.isChecked()
         self.entry.setEnabled(False)
@@ -571,6 +579,7 @@ class StoreGameDialog(QtWidgets.QDialog):
 
     def _finish_pause(self):
         self._busy = False
+        self._paused = True
         self.progress.hide()
         self.submit.setText(ADD_GAME("resume_download"))
         self.submit.setAccessibleName(self.submit.text())
@@ -632,9 +641,17 @@ class StoreGameDialog(QtWidgets.QDialog):
         # List the failed versions even when none installed: the plain
         # failure text below cannot say which ones failed or why.
         if failed:
-            self._log("".join(f"\n{line}" for line in self._job.failed_version_details))
+            reasons = self._job.failed_version_reasons
+            self._log("".join(f"\n{label}: {why}" for label, why in reasons.items()))
+            # The library window offers no way to open its Activity log, so the
+            # notice says why; versions that failed the same way share a line.
+            groups: dict[tuple[str, str], list[str]] = {}
+            for label, kind in failed:
+                groups.setdefault((kind, reasons.get(label, "")), []).append(label)
             details = "\n".join(
-                f"{label}: {ADD_GAME('version_' + kind)}" for label, kind in failed
+                f"{', '.join(labels)}: {ADD_GAME('version_' + kind)}"
+                + (f" ({why})" if why else "")
+                for (kind, why), labels in groups.items()
             )
             _themed_notice(
                 self,
